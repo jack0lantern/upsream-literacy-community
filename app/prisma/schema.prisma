@@ -1,0 +1,232 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Urbanicity {
+  urban
+  suburban
+  town
+  rural
+}
+
+enum SizeBucket {
+  small
+  medium
+  large
+  very_large
+}
+
+enum UserRole {
+  literacy_director
+  curriculum_coordinator
+  literacy_coach
+  mtss_coordinator
+  other
+}
+
+enum UserStatus {
+  active
+  suspended
+  deactivated
+}
+
+enum ConversationStatus {
+  active
+  closed
+  flagged
+}
+
+// ─── District ───────────────────────────────────────────────────────────────
+
+model District {
+  id              String      @id @default(cuid())
+  ncesId          String?     @unique @map("nces_id")
+  name            String
+  state           String
+  localeCode      String?     @map("locale_code")
+  urbanicity      Urbanicity?
+  totalEnrollment Int?        @map("total_enrollment")
+  sizeBucket      SizeBucket? @map("size_bucket")
+  frlPct          Float?      @map("frl_pct")
+  ellPct          Float?      @map("ell_pct")
+  isManual        Boolean     @default(false) @map("is_manual")
+  updatedAt       DateTime    @updatedAt @map("updated_at")
+
+  users User[]
+
+  @@index([state])
+  @@index([name])
+  @@map("districts")
+}
+
+// ─── User ───────────────────────────────────────────────────────────────────
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  name          String
+  role          UserRole?
+  bio           String?    @db.VarChar(280)
+  districtId    String?    @map("district_id")
+  isAdmin       Boolean    @default(false) @map("is_admin")
+  emailVerified Boolean    @default(false) @map("email_verified")
+  status        UserStatus @default(active)
+  onboarded     Boolean    @default(false)
+  createdAt     DateTime   @default(now()) @map("created_at")
+  lastActiveAt  DateTime?  @map("last_active_at")
+
+  district              District?            @relation(fields: [districtId], references: [id])
+  problems              UserProblem[]
+  sentMessages          Message[]            @relation("SentMessages")
+  conversationMembers   ConversationMember[]
+  analyticsEvents       AnalyticsEvent[]
+  emailVerificationToken EmailVerificationToken?
+  passwordResetToken     PasswordResetToken?
+
+  @@index([districtId])
+  @@index([status])
+  @@map("users")
+}
+
+// ─── Email Verification ─────────────────────────────────────────────────────
+
+model EmailVerificationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @unique @map("user_id")
+  expiresAt DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
+}
+
+// ─── Password Reset ─────────────────────────────────────────────────────────
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @unique @map("user_id")
+  expiresAt DateTime @map("expires_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+// ─── Problem Statement ──────────────────────────────────────────────────────
+
+model ProblemStatement {
+  id        String   @id @default(cuid())
+  label     String
+  category  String
+  sortOrder Int      @map("sort_order")
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  users UserProblem[]
+
+  @@map("problem_statements")
+}
+
+// ─── UserProblem (M2M join) ─────────────────────────────────────────────────
+
+model UserProblem {
+  id         String   @id @default(cuid())
+  userId     String   @map("user_id")
+  problemId  String   @map("problem_id")
+  selectedAt DateTime @default(now()) @map("selected_at")
+
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  problem ProblemStatement @relation(fields: [problemId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, problemId])
+  @@map("user_problems")
+}
+
+// ─── Conversation ───────────────────────────────────────────────────────────
+
+model Conversation {
+  id        String             @id @default(cuid())
+  status    ConversationStatus @default(active)
+  createdAt DateTime           @default(now()) @map("created_at")
+
+  members  ConversationMember[]
+  messages Message[]
+
+  @@map("conversations")
+}
+
+// ─── ConversationMember ─────────────────────────────────────────────────────
+
+model ConversationMember {
+  id             String    @id @default(cuid())
+  conversationId String    @map("conversation_id")
+  userId         String    @map("user_id")
+  muted          Boolean   @default(false)
+  lastReadAt     DateTime? @map("last_read_at")
+  joinedAt       DateTime  @default(now()) @map("joined_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([userId])
+  @@map("conversation_members")
+}
+
+// ─── Message ────────────────────────────────────────────────────────────────
+
+model Message {
+  id             String    @id @default(cuid())
+  conversationId String    @map("conversation_id")
+  senderId       String    @map("sender_id")
+  body           String
+  sentAt         DateTime  @default(now()) @map("sent_at")
+  readAt         DateTime? @map("read_at")
+  flagged        Boolean   @default(false)
+  deletedAt      DateTime? @map("deleted_at")
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id])
+
+  @@index([conversationId, sentAt])
+  @@index([senderId])
+  @@map("messages")
+}
+
+// ─── Analytics ──────────────────────────────────────────────────────────────
+
+model AnalyticsEvent {
+  id        String   @id @default(cuid())
+  userId    String?  @map("user_id")
+  eventType String   @map("event_type")
+  properties Json?   @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([eventType])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("analytics_events")
+}
+
+// ─── Keyword Alert ──────────────────────────────────────────────────────────
+
+model KeywordAlert {
+  id        String   @id @default(cuid())
+  keyword   String   @unique
+  active    Boolean  @default(true)
+  hitCount  Int      @default(0) @map("hit_count")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("keyword_alerts")
+}

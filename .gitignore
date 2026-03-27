@@ -1,0 +1,64 @@
+# Personal study reference (see .cursor/rules/study-guide.mdc)
+STUDY_GUIDE.md
+
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js (app lives in app/)
+**/.next/
+**/out/
+
+# Build / TypeScript
+*.tsbuildinfo
+dist/
+build/
+
+# Env and secrets (keep tracked templates like .env.example)
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+!.env.example
+
+# Vercel
+.vercel/
+
+# Turbo (if added later)
+.turbo/
+
+# Testing
+coverage/
+**/coverage/
+**/test-results/
+**/playwright-report/
+**/blob-report/
+**/playwright/.cache/
+
+# Logs and debug
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+*~
+
+# Optional local tooling
+*.pem
+.cache/
