@@ -111,6 +111,7 @@ export function seedDistrict(overrides?: Partial<MockDistrict>): MockDistrict {
     sizeBucket: "medium",
     frlPct: 35.0,
     ellPct: 12.0,
+    isCharterAgency: null,
     isManual: false,
     updatedAt: new Date(),
     ...overrides,

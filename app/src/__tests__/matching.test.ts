@@ -6,7 +6,7 @@
  * - Match scoring (problem overlap 40%, size 20%, urbanicity 20%, FRL 10%, ELL 10%)
  * - Minimum threshold (score >= 30)
  * - Sort by score and recently active
- * - Filters (state, urbanicity, size bucket)
+ * - Filters (state, urbanicity, size bucket, charter LEA)
  * - Pagination
  * - Self-exclusion (don't match with yourself)
  * - Deactivated/suspended users excluded
@@ -116,6 +116,47 @@ describe("Matching Engine", () => {
     const names = data.matches.map((m: { user: { name: string } }) => m.user.name);
     expect(names).not.toContain("Deactivated User");
     expect(names).not.toContain("Suspended User");
+  });
+
+  it("filters by charter LEA status", async () => {
+    const me = await seedOnboardedUser({
+      districtOverrides: { state: "CO", urbanicity: "suburban", sizeBucket: "medium" },
+      problemIds: ["ps_1", "ps_2"],
+    });
+
+    await seedOnboardedUser({
+      name: "Charter Peer",
+      districtOverrides: {
+        state: "CO",
+        urbanicity: "suburban",
+        sizeBucket: "medium",
+        isCharterAgency: true,
+      },
+      problemIds: ["ps_1", "ps_2"],
+    });
+
+    await seedOnboardedUser({
+      name: "Traditional Peer",
+      districtOverrides: {
+        state: "CO",
+        urbanicity: "suburban",
+        sizeBucket: "medium",
+        isCharterAgency: false,
+      },
+      problemIds: ["ps_1", "ps_2"],
+    });
+
+    setSession(me.id);
+
+    const charterRes = await matchesHandler(createRequest("/api/matches?charter=charter"));
+    const charterData = await parseResponse(charterRes);
+    expect(charterData.matches.some((m: { user: { name: string } }) => m.user.name === "Charter Peer")).toBe(true);
+    expect(charterData.matches.some((m: { user: { name: string } }) => m.user.name === "Traditional Peer")).toBe(false);
+
+    const tradRes = await matchesHandler(createRequest("/api/matches?charter=traditional"));
+    const tradData = await parseResponse(tradRes);
+    expect(tradData.matches.some((m: { user: { name: string } }) => m.user.name === "Traditional Peer")).toBe(true);
+    expect(tradData.matches.some((m: { user: { name: string } }) => m.user.name === "Charter Peer")).toBe(false);
   });
 
   it("filters by state", async () => {

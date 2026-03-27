@@ -140,6 +140,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "large" as const,
     frlPct: 52.3,
     ellPct: 8.1,
+    isCharterAgency: false,
   },
   {
     ncesId: "0600001",
@@ -151,6 +152,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "very_large" as const,
     frlPct: 80.3,
     ellPct: 20.1,
+    isCharterAgency: false,
   },
   {
     ncesId: "3600001",
@@ -162,6 +164,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "very_large" as const,
     frlPct: 73.0,
     ellPct: 14.8,
+    isCharterAgency: false,
   },
   {
     ncesId: "1700001",
@@ -173,6 +176,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "medium" as const,
     frlPct: 68.5,
     ellPct: 5.2,
+    isCharterAgency: false,
   },
   {
     ncesId: "4800001",
@@ -184,6 +188,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "medium" as const,
     frlPct: 8.2,
     ellPct: 4.5,
+    isCharterAgency: false,
   },
   {
     ncesId: "2900001",
@@ -195,6 +200,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "small" as const,
     frlPct: 55.0,
     ellPct: 2.1,
+    isCharterAgency: false,
   },
   {
     ncesId: "2000001",
@@ -206,6 +212,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "small" as const,
     frlPct: 45.0,
     ellPct: 6.0,
+    isCharterAgency: false,
   },
   {
     ncesId: "0800001",
@@ -217,6 +224,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "very_large" as const,
     frlPct: 12.8,
     ellPct: 5.3,
+    isCharterAgency: false,
   },
   {
     ncesId: "1200001",
@@ -228,6 +236,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "very_large" as const,
     frlPct: 58.2,
     ellPct: 15.4,
+    isCharterAgency: false,
   },
   {
     ncesId: "4200001",
@@ -239,6 +248,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "very_large" as const,
     frlPct: 77.0,
     ellPct: 10.9,
+    isCharterAgency: false,
   },
   {
     ncesId: "2700001",
@@ -250,6 +260,7 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "large" as const,
     frlPct: 22.5,
     ellPct: 9.3,
+    isCharterAgency: false,
   },
   {
     ncesId: "5500001",
@@ -261,6 +272,20 @@ const SAMPLE_DISTRICTS = [
     sizeBucket: "small" as const,
     frlPct: 48.5,
     ellPct: 3.2,
+    isCharterAgency: false,
+  },
+  // Synthetic NCES id for dev — represents a charter LEA (NCES agency type 7)
+  {
+    ncesId: "0999999",
+    name: "Sample Charter School District",
+    state: "CO",
+    localeCode: "21",
+    urbanicity: "suburban" as const,
+    totalEnrollment: 4200,
+    sizeBucket: "medium" as const,
+    frlPct: 38.0,
+    ellPct: 11.0,
+    isCharterAgency: true,
   },
 ];
 
@@ -289,7 +314,7 @@ async function main() {
   }
   console.log(`   ✓ ${SAMPLE_DISTRICTS.length} sample districts seeded\n`);
 
-  // Create dev users (admin + 15 test accounts)
+  // Create dev users (admin + 16 test accounts)
   if (process.env.NODE_ENV !== "production") {
     const { hash } = await import("bcryptjs");
     const pwHash = await hash("password123", 12);
@@ -345,7 +370,7 @@ async function main() {
       if (found) districtsByNces.set(d.ncesId, found.id);
     }
 
-    // 15 seed users — spread across districts, roles, urbanicities, and sizes
+    // 16 seed users — spread across districts, roles, urbanicities, and sizes
     const SEED_USERS: {
       email: string;
       name: string;
@@ -474,9 +499,17 @@ async function main() {
         bio: "Implementing dyslexia screening and building tiered intervention supports.",
         problemSortOrders: [7, 9, 6],
       },
+      {
+        email: "elena.vega@samplecharter.edu",
+        name: "Elena Vega",
+        role: "literacy_director",
+        districtNcesId: "0999999", // Sample charter LEA (dev)
+        bio: "Leading literacy across a network of charter schools under one authorizer.",
+        problemSortOrders: [2, 9, 20],
+      },
     ];
 
-    console.log("👥 Creating 15 seed user accounts...");
+    console.log("👥 Creating 16 seed user accounts...");
     for (const u of SEED_USERS) {
       const districtId = districtsByNces.get(u.districtNcesId) ?? null;
       const user = await prisma.user.upsert({

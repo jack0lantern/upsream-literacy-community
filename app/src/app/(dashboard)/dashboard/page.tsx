@@ -43,6 +43,7 @@ interface Match {
     sizeBucket: string | null;
     frlPct: number | null;
     ellPct: number | null;
+    isCharterAgency: boolean | null;
   } | null;
   sharedProblems: string[];
   score: number;
@@ -90,6 +91,7 @@ export default function DashboardPage() {
   const [filterState, setFilterState] = useState("");
   const [filterUrbanicity, setFilterUrbanicity] = useState("");
   const [filterSizeBucket, setFilterSizeBucket] = useState("");
+  const [filterCharter, setFilterCharter] = useState("");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
 
   // Problem lookup map
@@ -111,6 +113,7 @@ export default function DashboardPage() {
     if (filterState) params.set("state", filterState);
     if (filterUrbanicity) params.set("urbanicity", filterUrbanicity);
     if (filterSizeBucket) params.set("sizeBucket", filterSizeBucket);
+    if (filterCharter) params.set("charter", filterCharter);
 
     const res = await fetch(`/api/matches?${params}`);
     const data = await res.json();
@@ -118,7 +121,7 @@ export default function DashboardPage() {
     setTotal(data.total ?? 0);
     setTotalPages(data.totalPages ?? 1);
     setLoading(false);
-  }, [page, sort, filterState, filterUrbanicity, filterSizeBucket]);
+  }, [page, sort, filterState, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   useEffect(() => {
     fetchMatches();
@@ -126,7 +129,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filterState, filterUrbanicity, filterSizeBucket]);
+  }, [filterState, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   function buildMatchSummary(match: Match): string {
     const parts: string[] = [];
@@ -208,7 +211,22 @@ export default function DashboardPage() {
           </SelectContent>
         </Select>
       </div>
-      {(filterState || filterUrbanicity || filterSizeBucket) && (
+      <div>
+        <label className="text-sm font-medium mb-1.5 block">
+          Charter (LEA)
+        </label>
+        <Select value={filterCharter} onValueChange={(v) => setFilterCharter(v ?? "")}>
+          <SelectTrigger>
+            <SelectValue placeholder="All" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All</SelectItem>
+            <SelectItem value="charter">Charter district only</SelectItem>
+            <SelectItem value="traditional">Traditional only</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+      {(filterState || filterUrbanicity || filterSizeBucket || filterCharter) && (
         <Button
           variant="ghost"
           size="sm"
@@ -216,6 +234,7 @@ export default function DashboardPage() {
             setFilterState("");
             setFilterUrbanicity("");
             setFilterSizeBucket("");
+            setFilterCharter("");
           }}
         >
           Clear filters
@@ -310,6 +329,7 @@ export default function DashboardPage() {
                         {match.district && (
                           <p className="text-xs text-muted-foreground">
                             {match.district.name}, {match.district.state}
+                            {match.district.isCharterAgency === true && " · Charter LEA"}
                             {match.district.totalEnrollment &&
                               ` · ${match.district.totalEnrollment.toLocaleString()} students`}
                           </p>

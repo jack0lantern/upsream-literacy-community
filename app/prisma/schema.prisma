@@ -55,6 +55,8 @@ model District {
   sizeBucket      SizeBucket? @map("size_bucket")
   frlPct          Float?      @map("frl_pct")
   ellPct          Float?      @map("ell_pct")
+  /// NCES LEA type 7 (charter agency). Null when unknown (e.g. manual district).
+  isCharterAgency Boolean?    @map("is_charter_agency")
   isManual        Boolean     @default(false) @map("is_manual")
   updatedAt       DateTime    @updatedAt @map("updated_at")
 

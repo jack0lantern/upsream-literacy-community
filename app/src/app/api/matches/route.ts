@@ -59,6 +59,7 @@ export async function GET(request: NextRequest) {
   const filterState = searchParams.get("state");
   const filterUrbanicity = searchParams.get("urbanicity");
   const filterSizeBucket = searchParams.get("sizeBucket");
+  const filterCharter = searchParams.get("charter"); // "charter" | "traditional" | null
   const filterProblemIds = searchParams.get("problemIds")?.split(",").filter(Boolean);
 
   // Get current user with district and problems
@@ -101,6 +102,12 @@ export async function GET(request: NextRequest) {
       problems: { select: { problemId: true } },
     },
   });
+
+  if (filterCharter === "charter") {
+    candidates = candidates.filter((c) => c.district?.isCharterAgency === true);
+  } else if (filterCharter === "traditional") {
+    candidates = candidates.filter((c) => c.district?.isCharterAgency !== true);
+  }
 
   // Filter by specific problem IDs if requested
   if (filterProblemIds && filterProblemIds.length > 0) {
@@ -158,6 +165,7 @@ export async function GET(request: NextRequest) {
               sizeBucket: theirDistrict.sizeBucket,
               frlPct: theirDistrict.frlPct,
               ellPct: theirDistrict.ellPct,
+              isCharterAgency: theirDistrict.isCharterAgency,
             }
           : null,
         sharedProblems: shared,
@@ -191,7 +199,7 @@ export async function GET(request: NextRequest) {
   trackEvent("match_viewed", session.user.id, {
     resultCount: total,
     page,
-    filters: { filterState, filterUrbanicity, filterSizeBucket },
+    filters: { filterState, filterUrbanicity, filterSizeBucket, filterCharter },
   });
 
   return NextResponse.json({

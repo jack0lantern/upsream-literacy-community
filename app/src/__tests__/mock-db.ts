@@ -33,6 +33,7 @@ export interface MockDistrict {
   sizeBucket: string | null;
   frlPct: number | null;
   ellPct: number | null;
+  isCharterAgency: boolean | null;
   isManual: boolean;
   updatedAt: Date;
 }
@@ -389,7 +390,7 @@ const baseUser = buildModelProxy(stores.users, () => ({
 
 const baseDistrict = buildModelProxy(stores.districts, () => ({
   ncesId: null, localeCode: null, urbanicity: null, totalEnrollment: null,
-  sizeBucket: null, frlPct: null, ellPct: null, isManual: false, updatedAt: new Date(),
+  sizeBucket: null, frlPct: null, ellPct: null, isCharterAgency: null, isManual: false, updatedAt: new Date(),
 }));
 
 const baseProblemStatement = buildModelProxy(stores.problemStatements, () => ({
