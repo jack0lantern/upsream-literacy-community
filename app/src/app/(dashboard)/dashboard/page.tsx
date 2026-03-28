@@ -88,7 +88,10 @@ export default function DashboardPage() {
 
   // Filters
   const [sort, setSort] = useState("score");
+  const [filterRole, setFilterRole] = useState("");
+  const [filterChallenge, setFilterChallenge] = useState("");
   const [filterState, setFilterState] = useState("");
+  const [filterStateScope, setFilterStateScope] = useState("");
   const [filterUrbanicity, setFilterUrbanicity] = useState("");
   const [filterSizeBucket, setFilterSizeBucket] = useState("");
   const [filterCharter, setFilterCharter] = useState("");
@@ -110,7 +113,10 @@ export default function DashboardPage() {
   const fetchMatches = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), sort });
+    if (filterRole) params.set("role", filterRole);
+    if (filterChallenge) params.set("problemIds", filterChallenge);
     if (filterState) params.set("state", filterState);
+    if (filterStateScope) params.set("stateScope", filterStateScope);
     if (filterUrbanicity) params.set("urbanicity", filterUrbanicity);
     if (filterSizeBucket) params.set("sizeBucket", filterSizeBucket);
     if (filterCharter) params.set("charter", filterCharter);
@@ -121,7 +127,7 @@ export default function DashboardPage() {
     setTotal(data.total ?? 0);
     setTotalPages(data.totalPages ?? 1);
     setLoading(false);
-  }, [page, sort, filterState, filterUrbanicity, filterSizeBucket, filterCharter]);
+  }, [page, sort, filterRole, filterChallenge, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   useEffect(() => {
     fetchMatches();
@@ -129,7 +135,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filterState, filterUrbanicity, filterSizeBucket, filterCharter]);
+  }, [filterRole, filterChallenge, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   function buildMatchSummary(match: Match): string {
     const parts: string[] = [];
@@ -147,13 +153,42 @@ export default function DashboardPage() {
       : getMatchLabel(match.score);
   }
 
+  const SORT_LABELS: Record<string, string> = {
+    score: "Match score",
+    recent: "Recently active",
+  };
+
+  const URBANICITY_LABELS: Record<string, string> = {
+    urban: "Urban",
+    suburban: "Suburban",
+    town: "Town",
+    rural: "Rural",
+  };
+
+  const SIZE_LABELS: Record<string, string> = {
+    small: "Small (<3K)",
+    medium: "Medium (3K-15K)",
+    large: "Large (15K-50K)",
+    very_large: "Very Large (50K+)",
+  };
+
+  const STATE_SCOPE_LABELS: Record<string, string> = {
+    same: "Same state as me",
+    different: "Different state",
+  };
+
+  const CHARTER_LABELS: Record<string, string> = {
+    charter: "Charter district only",
+    traditional: "Traditional only",
+  };
+
   const filterContent = (
     <div className="space-y-4">
       <div>
         <label className="text-sm font-medium mb-1.5 block">Sort by</label>
         <Select value={sort} onValueChange={(v) => v && setSort(v)}>
           <SelectTrigger>
-            <SelectValue />
+            <SelectValue>{(v: string) => SORT_LABELS[v] ?? v}</SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="score">Match score</SelectItem>
@@ -162,13 +197,64 @@ export default function DashboardPage() {
         </Select>
       </div>
       <div>
-        <label className="text-sm font-medium mb-1.5 block">State</label>
-        <Select value={filterState} onValueChange={(v) => setFilterState(v ?? "")}>
+        <label className="text-sm font-medium mb-1.5 block">Role</label>
+        <Select value={filterRole} onValueChange={(v) => setFilterRole(v ?? "")}>
           <SelectTrigger>
-            <SelectValue placeholder="All states" />
+            <SelectValue placeholder="All roles">
+              {(v: string) => ROLE_LABELS[v] ?? "All roles"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All roles</SelectItem>
+            {Object.entries(ROLE_LABELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className="text-sm font-medium mb-1.5 block">Challenge</label>
+        <Select value={filterChallenge} onValueChange={(v) => setFilterChallenge(v ?? "")}>
+          <SelectTrigger>
+            <SelectValue placeholder="Any challenge">
+              {(v: string) => problemMap[v] ?? "Any challenge"}
+            </SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">Any challenge</SelectItem>
+            {problems.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {p.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div>
+        <label className="text-sm font-medium mb-1.5 block">State</label>
+        <Select
+          value={filterStateScope || filterState}
+          onValueChange={(v) => {
+            if (v === "same" || v === "different") {
+              setFilterStateScope(v);
+              setFilterState("");
+            } else {
+              setFilterStateScope("");
+              setFilterState(v ?? "");
+            }
+          }}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="All states">
+              {(v: string) => STATE_SCOPE_LABELS[v] ?? (v || "All states")}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">All states</SelectItem>
+            <SelectItem value="same">Same state as me</SelectItem>
+            <SelectItem value="different">Different state</SelectItem>
             {US_STATES.map((s) => (
               <SelectItem key={s} value={s}>
                 {s}
@@ -183,7 +269,9 @@ export default function DashboardPage() {
         </label>
         <Select value={filterUrbanicity} onValueChange={(v) => setFilterUrbanicity(v ?? "")}>
           <SelectTrigger>
-            <SelectValue placeholder="All types" />
+            <SelectValue placeholder="All types">
+              {(v: string) => URBANICITY_LABELS[v] ?? "All types"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">All types</SelectItem>
@@ -200,7 +288,9 @@ export default function DashboardPage() {
         </label>
         <Select value={filterSizeBucket} onValueChange={(v) => setFilterSizeBucket(v ?? "")}>
           <SelectTrigger>
-            <SelectValue placeholder="All sizes" />
+            <SelectValue placeholder="All sizes">
+              {(v: string) => SIZE_LABELS[v] ?? "All sizes"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">All sizes</SelectItem>
@@ -217,7 +307,9 @@ export default function DashboardPage() {
         </label>
         <Select value={filterCharter} onValueChange={(v) => setFilterCharter(v ?? "")}>
           <SelectTrigger>
-            <SelectValue placeholder="All" />
+            <SelectValue placeholder="All">
+              {(v: string) => CHARTER_LABELS[v] ?? "All"}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="">All</SelectItem>
@@ -226,12 +318,15 @@ export default function DashboardPage() {
           </SelectContent>
         </Select>
       </div>
-      {(filterState || filterUrbanicity || filterSizeBucket || filterCharter) && (
+      {(filterRole || filterChallenge || filterState || filterStateScope || filterUrbanicity || filterSizeBucket || filterCharter) && (
         <Button
           variant="ghost"
           size="sm"
           onClick={() => {
+            setFilterRole("");
+            setFilterChallenge("");
             setFilterState("");
+            setFilterStateScope("");
             setFilterUrbanicity("");
             setFilterSizeBucket("");
             setFilterCharter("");
