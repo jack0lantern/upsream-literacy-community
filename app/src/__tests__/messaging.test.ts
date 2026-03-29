@@ -386,7 +386,8 @@ describe("Messaging System", () => {
       seedMessage(conversationId, userA.id, "Latest message");
       setSession(userA.id);
 
-      const res = await conversationsListHandler();
+      const req = createRequest("/api/conversations");
+      const res = await conversationsListHandler(req);
       const data = await parseResponse(res);
 
       expect(res.status).toBe(200);
@@ -396,7 +397,8 @@ describe("Messaging System", () => {
     it("requires authentication", async () => {
       mockAuth.mockResolvedValue(null);
 
-      const res = await conversationsListHandler();
+      const req = createRequest("/api/conversations");
+      const res = await conversationsListHandler(req);
       expect(res.status).toBe(401);
     });
   });

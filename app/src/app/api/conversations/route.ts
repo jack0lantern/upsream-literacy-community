@@ -4,12 +4,15 @@ import { db } from "@/lib/db";
 import { trackEvent } from "@/lib/analytics";
 
 // List conversations for current user
-export async function GET() {
+export async function GET(request: NextRequest) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
+  const type = request.nextUrl.searchParams.get("type");
+
+  // Fetch all memberships for current user (all statuses)
   const memberships = await db.conversationMember.findMany({
     where: { userId: session.user.id },
     include: {
@@ -39,31 +42,57 @@ export async function GET() {
     },
   });
 
-  const conversations = memberships.map((m) => {
-    const otherMember = m.conversation.members.find(
-      (cm) => cm.userId !== session.user.id
-    );
-    const lastMessage = m.conversation.messages[0] ?? null;
+  // Fetch IDs of users who have blocked the current user
+  const blockerIds = new Set(
+    (
+      await db.userBlock.findMany({
+        where: { blockedId: session.user.id },
+        select: { blockerId: true },
+      })
+    ).map((b) => b.blockerId)
+  );
 
-    // Count unread: messages from other user, sent after my lastReadAt
-    const unreadCutoff = m.lastReadAt ?? new Date(0);
+  const conversations = memberships
+    .filter((m) => {
+      const status = m.conversation.status;
+      const otherMember = m.conversation.members.find(
+        (cm) => cm.userId !== session.user.id
+      );
+      const otherUserId = otherMember?.userId ?? "";
 
-    return {
-      id: m.conversation.id,
-      status: m.conversation.status,
-      muted: m.muted,
-      otherUser: otherMember?.user ?? null,
-      lastMessage,
-      lastReadAt: m.lastReadAt,
-      hasUnread:
-        lastMessage &&
-        lastMessage.senderId !== session.user.id &&
-        lastMessage.sentAt > unreadCutoff,
-      createdAt: m.conversation.createdAt,
-    };
-  });
+      // Requests tab: only pending conversations
+      if (type === "requests") {
+        return status === "pending";
+      }
 
-  // Deduplicate by other user — keep conversation with most recent activity
+      // Default list: only active/flagged, excluding blocked-by relationships
+      if (status !== "active" && status !== "flagged") return false;
+      if (blockerIds.has(otherUserId)) return false;
+      return true;
+    })
+    .map((m) => {
+      const otherMember = m.conversation.members.find(
+        (cm) => cm.userId !== session.user.id
+      );
+      const lastMessage = m.conversation.messages[0] ?? null;
+      const unreadCutoff = m.lastReadAt ?? new Date(0);
+
+      return {
+        id: m.conversation.id,
+        status: m.conversation.status,
+        muted: m.muted,
+        otherUser: otherMember?.user ?? null,
+        lastMessage,
+        lastReadAt: m.lastReadAt,
+        hasUnread:
+          lastMessage &&
+          lastMessage.senderId !== session.user.id &&
+          lastMessage.sentAt > unreadCutoff,
+        createdAt: m.conversation.createdAt,
+      };
+    });
+
+  // Deduplicate by other user (keep most recent)
   const deduped = new Map<string, (typeof conversations)[number]>();
   for (const conv of conversations) {
     const key = conv.otherUser?.id ?? conv.id;
@@ -75,13 +104,10 @@ export async function GET() {
         existing.lastMessage?.sentAt.getTime() ?? existing.createdAt.getTime();
       const convTime =
         conv.lastMessage?.sentAt.getTime() ?? conv.createdAt.getTime();
-      if (convTime > existingTime) {
-        deduped.set(key, conv);
-      }
+      if (convTime > existingTime) deduped.set(key, conv);
     }
   }
 
-  // Sort by last message time
   const result = Array.from(deduped.values());
   result.sort((a, b) => {
     const aTime = a.lastMessage?.sentAt.getTime() ?? a.createdAt.getTime();
