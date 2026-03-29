@@ -25,31 +25,40 @@ export async function POST(
     return NextResponse.json({ blocked: true }, { status: 200 });
   }
 
-  await db.$transaction(async (tx) => {
-    await tx.userBlock.create({
-      data: { blockerId: session.user.id, blockedId: targetId },
-    });
-
-    // Close any active or pending shared conversation
-    const membership = await tx.conversationMember.findFirst({
-      where: {
-        userId: session.user.id,
-        conversation: { members: { some: { userId: targetId } } },
-      },
-      include: { conversation: { select: { id: true, status: true } } },
-    });
-
-    if (
-      membership?.conversation &&
-      (membership.conversation.status === "active" ||
-        membership.conversation.status === "pending")
-    ) {
-      await tx.conversation.update({
-        where: { id: membership.conversation.id },
-        data: { status: "closed" },
+  try {
+    await db.$transaction(async (tx) => {
+      await tx.userBlock.create({
+        data: { blockerId: session.user.id, blockedId: targetId },
       });
+
+      // Close any active or pending shared conversation
+      const membership = await tx.conversationMember.findFirst({
+        where: {
+          userId: session.user.id,
+          conversation: { members: { some: { userId: targetId } } },
+        },
+        include: { conversation: { select: { id: true, status: true } } },
+      });
+
+      if (
+        membership?.conversation &&
+        (membership.conversation.status === "active" ||
+          membership.conversation.status === "pending")
+      ) {
+        await tx.conversation.update({
+          where: { id: membership.conversation.id },
+          data: { status: "closed" },
+        });
+      }
+    });
+  } catch (e: unknown) {
+    // P2002 = unique constraint violation — concurrent create, treat as idempotent
+    const err = e as { code?: string };
+    if (err?.code === "P2002") {
+      return NextResponse.json({ blocked: true }, { status: 200 });
     }
-  });
+    throw e;
+  }
 
   logger.info({ blockerId: session.user.id, blockedId: targetId }, "user blocked");
   return NextResponse.json({ blocked: true }, { status: 201 });
@@ -66,14 +75,9 @@ export async function DELETE(
   }
 
   // Idempotent: no-op if block doesn't exist
-  const existing = await db.userBlock.findUnique({
-    where: { blockerId_blockedId: { blockerId: session.user.id, blockedId: targetId } },
+  await db.userBlock.deleteMany({
+    where: { blockerId: session.user.id, blockedId: targetId },
   });
-  if (existing) {
-    await db.userBlock.delete({
-      where: { blockerId_blockedId: { blockerId: session.user.id, blockedId: targetId } },
-    });
-  }
 
   return NextResponse.json({ blocked: false });
 }
