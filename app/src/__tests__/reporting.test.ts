@@ -26,10 +26,8 @@ vi.mock("@/lib/auth", () => ({
 }));
 
 import { POST as fileReportHandler } from "@/app/api/reports/route";
-import {
-  GET as listReportsHandler,
-  PATCH as reviewReportHandler,
-} from "@/app/api/admin/reports/route";
+import { GET as listReportsHandler } from "@/app/api/admin/reports/route";
+import { PATCH as reviewReportHandler } from "@/app/api/admin/reports/[id]/route";
 
 function setSession(userId: string) {
   mockAuth.mockResolvedValue({ user: { id: userId, name: "Test", email: "t@t.com" } });
@@ -92,6 +90,21 @@ describe("Reporting", () => {
       });
       const res = await fileReportHandler(req);
       expect(res.status).toBe(400);
+    });
+
+    it("returns 403 when reporter is not a member of the conversation", async () => {
+      const reporter = await seedOnboardedUser();
+      const userA = await seedOnboardedUser();
+      const userB = await seedOnboardedUser();
+      const { messageId } = seedPendingConversation(userA.id, userB.id, "Hello there");
+      setSession(reporter.id);
+
+      const req = createRequest("/api/reports", {
+        method: "POST",
+        body: { messageId, reason: "Not in this conversation" },
+      });
+      const res = await fileReportHandler(req);
+      expect(res.status).toBe(403);
     });
   });
 

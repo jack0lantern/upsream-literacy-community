@@ -23,10 +23,19 @@ export async function POST(request: NextRequest) {
   // Verify the message exists
   const message = await db.message.findUnique({
     where: { id: messageId },
-    select: { senderId: true },
+    select: { senderId: true, conversationId: true },
   });
   if (!message) {
     return NextResponse.json({ error: "Message not found" }, { status: 404 });
+  }
+
+  // Verify the reporter is a member of the conversation containing this message
+  const membership = await db.conversationMember.findFirst({
+    where: { conversationId: message.conversationId, userId: session.user.id },
+    select: { id: true },
+  });
+  if (!membership) {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const sanitizedReason = sanitizeMessageBody(reason.trim()).slice(0, 500);
