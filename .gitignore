@@ -59,6 +59,9 @@ Thumbs.db
 *.swo
 *~
 
+# Git worktrees
+.worktrees/
+
 # Optional local tooling
 *.pem
 .cache/
