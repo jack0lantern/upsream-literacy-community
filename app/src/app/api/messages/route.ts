@@ -65,14 +65,44 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
+  // Check if either party has blocked the other
+  const otherMemberForBlock = await db.conversationMember.findFirst({
+    where: { conversationId, userId: { not: session.user.id } },
+    select: { userId: true },
+  });
+
+  if (otherMemberForBlock) {
+    const block = await db.userBlock.findFirst({
+      where: {
+        OR: [
+          { blockerId: session.user.id, blockedId: otherMemberForBlock.userId },
+          { blockerId: otherMemberForBlock.userId, blockedId: session.user.id },
+        ],
+      },
+    });
+    if (block) {
+      return NextResponse.json(
+        { error: "Cannot send messages to this user." },
+        { status: 403 }
+      );
+    }
+  }
+
   // Check conversation status
   const conversation = await db.conversation.findUnique({
     where: { id: conversationId },
     select: { status: true },
   });
-  if (conversation?.status === "closed") {
+  if (conversation?.status === "closed" || conversation?.status === "rejected") {
     return NextResponse.json(
       { error: "This conversation has been closed." },
+      { status: 403 }
+    );
+  }
+
+  if (conversation?.status === "pending") {
+    return NextResponse.json(
+      { error: "This conversation is awaiting acceptance." },
       { status: 403 }
     );
   }
