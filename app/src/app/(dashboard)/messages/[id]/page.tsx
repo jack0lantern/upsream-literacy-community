@@ -58,6 +58,8 @@ export default function ConversationPage({
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [reportReason, setReportReason] = useState("");
+  const [reportingMessageId, setReportingMessageId] = useState<string | null>(null);
+  const [reportMessageReason, setReportMessageReason] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -157,6 +159,44 @@ export default function ConversationPage({
     );
   }
 
+  async function handleAccept() {
+    const res = await fetch(`/api/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "accept" }),
+    });
+    if (res.ok) {
+      setConversationInfo((prev) => prev ? { ...prev, status: "active" } : prev);
+    }
+  }
+
+  async function handleDecline() {
+    const res = await fetch(`/api/conversations/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "reject" }),
+    });
+    if (res.ok) {
+      router.push("/messages");
+    }
+  }
+
+  async function handleBlock() {
+    await fetch(`/api/users/${otherUser?.id}/block`, { method: "POST" });
+    router.push("/messages");
+  }
+
+  async function handleReportMessage() {
+    if (!reportingMessageId || !reportMessageReason.trim()) return;
+    await fetch("/api/reports", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ messageId: reportingMessageId, reason: reportMessageReason }),
+    });
+    setReportingMessageId(null);
+    setReportMessageReason("");
+  }
+
   function formatTime(dateStr: string): string {
     return new Date(dateStr).toLocaleTimeString([], {
       hour: "numeric",
@@ -185,6 +225,9 @@ export default function ConversationPage({
   const otherUser = conversationInfo?.otherUser;
   const isSuspended = otherUser?.status === "suspended";
   const isClosed = conversationInfo?.status === "closed";
+  const isPending = conversationInfo?.status === "pending";
+  // isSender: true if current user sent the first message (i.e., initiated the request)
+  const isSender = messages.length > 0 && messages[0].sender.id === currentUserId;
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-8rem)]">
@@ -277,6 +320,12 @@ export default function ConversationPage({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            <DropdownMenuItem
+              onClick={handleBlock}
+              className="text-destructive focus:text-destructive"
+            >
+              Block {otherUser?.name ?? "user"}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -309,7 +358,7 @@ export default function ConversationPage({
                   <div
                     key={msg.id}
                     className={cn(
-                      "flex",
+                      "flex group",
                       isMine ? "justify-end" : "justify-start"
                     )}
                   >
@@ -348,6 +397,29 @@ export default function ConversationPage({
                         )}
                       </div>
                     </div>
+                    {!isMine && (
+                      <button
+                        onClick={() => setReportingMessageId(msg.id)}
+                        className="ml-1 self-center opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                        aria-label="Report message"
+                        title="Report message"
+                      >
+                        <svg
+                          xmlns="http://www.w3.org/2000/svg"
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                          <line x1="4" x2="4" y1="22" y2="15" />
+                        </svg>
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -364,7 +436,20 @@ export default function ConversationPage({
         </div>
       ) : isClosed ? (
         <div className="py-3 px-4 bg-muted rounded-lg text-center text-sm text-muted-foreground">
-          This conversation has been closed by a moderator.
+          This conversation has been closed.
+        </div>
+      ) : isPending && isSender ? (
+        <div className="py-3 px-4 bg-muted rounded-lg text-center text-sm text-muted-foreground">
+          Waiting for {otherUser?.name ?? "them"} to accept your request.
+        </div>
+      ) : isPending && !isSender ? (
+        <div className="flex gap-2 pt-4 border-t">
+          <Button variant="outline" onClick={handleDecline} className="flex-1">
+            Decline
+          </Button>
+          <Button onClick={handleAccept} className="flex-1">
+            Accept
+          </Button>
         </div>
       ) : (
         <div className="flex gap-2 pt-4 border-t">
@@ -403,6 +488,39 @@ export default function ConversationPage({
             </svg>
           </Button>
         </div>
+      )}
+
+      {/* Report message dialog */}
+      {reportingMessageId && (
+        <Dialog open onOpenChange={(open) => !open && setReportingMessageId(null)}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Report message</DialogTitle>
+              <DialogDescription>
+                Tell us what&apos;s wrong. Our team will review within 24 hours.
+              </DialogDescription>
+            </DialogHeader>
+            <Textarea
+              value={reportMessageReason}
+              onChange={(e) => setReportMessageReason(e.target.value)}
+              placeholder="Describe the issue..."
+              maxLength={500}
+              rows={3}
+            />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setReportingMessageId(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleReportMessage}
+                disabled={!reportMessageReason.trim()}
+              >
+                Submit report
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );
