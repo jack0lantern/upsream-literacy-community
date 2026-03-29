@@ -202,3 +202,81 @@ export function seedKeyword(keyword: string): string {
   });
   return id;
 }
+
+export function seedPendingConversation(
+  initiatorId: string,
+  recipientId: string,
+  body: string,
+  status: "pending" | "rejected" = "pending"
+): { conversationId: string; messageId: string } {
+  const conversationId = genId();
+  const memberAId = genId();
+  const memberBId = genId();
+  const messageId = genId();
+
+  stores.conversations.set(conversationId, {
+    id: conversationId,
+    status,
+    createdAt: new Date(),
+  });
+  stores.conversationMembers.set(memberAId, {
+    id: memberAId,
+    conversationId,
+    userId: initiatorId,
+    muted: false,
+    lastReadAt: null,
+    joinedAt: new Date(),
+  });
+  stores.conversationMembers.set(memberBId, {
+    id: memberBId,
+    conversationId,
+    userId: recipientId,
+    muted: false,
+    lastReadAt: null,
+    joinedAt: new Date(),
+  });
+  stores.messages.set(messageId, {
+    id: messageId,
+    conversationId,
+    senderId: initiatorId,
+    body,
+    sentAt: new Date(),
+    readAt: null,
+    flagged: false,
+    deletedAt: null,
+  });
+
+  return { conversationId, messageId };
+}
+
+export function seedBlock(blockerId: string, blockedId: string): string {
+  const id = genId();
+  stores.userBlocks.set(id, {
+    id,
+    blockerId,
+    blockedId,
+    createdAt: new Date(),
+  });
+  return id;
+}
+
+export function seedReport(
+  reporterId: string,
+  reportedUserId: string,
+  messageId: string,
+  reason = "This is a test report reason."
+): string {
+  const id = genId();
+  stores.reports.set(id, {
+    id,
+    reporterId,
+    reportedUserId,
+    messageId,
+    reason,
+    status: "pending",
+    reviewedById: null,
+    reviewedAt: null,
+    createdAt: new Date(),
+  });
+  return id;
+}

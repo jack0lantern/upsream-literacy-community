@@ -110,6 +110,25 @@ export interface MockKeywordAlert {
   createdAt: Date;
 }
 
+export interface MockUserBlock {
+  id: string;
+  blockerId: string;
+  blockedId: string;
+  createdAt: Date;
+}
+
+export interface MockReport {
+  id: string;
+  reporterId: string;
+  reportedUserId: string;
+  messageId: string;
+  reason: string;
+  status: string;
+  reviewedById: string | null;
+  reviewedAt: Date | null;
+  createdAt: Date;
+}
+
 // ─── Data stores ─────────────────────────────────────────────────────────
 
 export const stores = {
@@ -124,6 +143,8 @@ export const stores = {
   emailVerificationTokens: new Map<string, MockEmailVerificationToken>(),
   passwordResetTokens: new Map<string, MockPasswordResetToken>(),
   keywordAlerts: new Map<string, MockKeywordAlert>(),
+  userBlocks: new Map<string, MockUserBlock>(),
+  reports: new Map<string, MockReport>(),
 };
 
 let idCounter = 0;
@@ -604,6 +625,15 @@ export const mockDb = {
   keywordAlert: buildModelProxy(stores.keywordAlerts, () => ({
     active: true, hitCount: 0, createdAt: new Date(),
   })),
+  userBlock: buildModelProxy(stores.userBlocks, () => ({
+    createdAt: new Date(),
+  })),
+  report: buildModelProxy(stores.reports, () => ({
+    reviewedById: null,
+    reviewedAt: null,
+    status: "pending",
+    createdAt: new Date(),
+  })),
   $queryRaw: vi.fn().mockResolvedValue([{ "?column?": 1 }]),
   $transaction: vi.fn(async (opsOrFn: unknown[] | ((tx: unknown) => unknown)) => {
     if (typeof opsOrFn === "function") {
@@ -616,6 +646,25 @@ export const mockDb = {
     return results;
   }),
 };
+
+// UserBlock compound key support: { blockerId_blockedId: { blockerId, blockedId } }
+const baseUserBlock = mockDb.userBlock;
+baseUserBlock.findUnique = vi.fn(async (args: { where: Record<string, unknown> }) => {
+  const w = args.where;
+  if (w.blockerId_blockedId) {
+    const compound = w.blockerId_blockedId as { blockerId: string; blockedId: string };
+    for (const item of stores.userBlocks.values()) {
+      if (item.blockerId === compound.blockerId && item.blockedId === compound.blockedId) {
+        return item;
+      }
+    }
+    return null;
+  }
+  for (const item of stores.userBlocks.values()) {
+    if (matchesWhere(item, w)) return item;
+  }
+  return null;
+});
 
 // Mock the db module
 vi.mock("@/lib/db", () => ({
