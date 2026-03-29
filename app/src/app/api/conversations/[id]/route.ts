@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/logger";
 
 // Mute/unmute or report conversation
 export async function PATCH(
@@ -69,7 +70,7 @@ export async function PATCH(
       select: { senderId: true },
     });
 
-    if (firstMessage?.senderId === session.user.id) {
+    if (!firstMessage || firstMessage.senderId === session.user.id) {
       return NextResponse.json(
         { error: "Only the recipient can accept or reject a request" },
         { status: 403 }
@@ -78,6 +79,7 @@ export async function PATCH(
 
     const newStatus = body.action === "accept" ? "active" : "rejected";
     await db.conversation.update({ where: { id }, data: { status: newStatus } });
+    logger.info({ conversationId: id, action: body.action, userId: session.user.id }, "conversation request %s", body.action);
     return NextResponse.json({ status: newStatus });
   }
 

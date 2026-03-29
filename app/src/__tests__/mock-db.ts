@@ -257,12 +257,28 @@ function buildModelProxy<T extends { id: string }>(
       }
       return null;
     }),
-    findFirst: vi.fn(async (args?: { where?: Record<string, unknown>; select?: unknown }) => {
-      if (!args?.where) return store.values().next().value ?? null;
-      for (const item of store.values()) {
-        if (matchesWhere(item, args.where)) return item;
+    findFirst: vi.fn(async (args?: { where?: Record<string, unknown>; orderBy?: Record<string, string>; select?: unknown }) => {
+      let items = [...store.values()];
+      if (args?.where) {
+        items = items.filter((i) => matchesWhere(i, args.where!));
       }
-      return null;
+      if (args?.orderBy) {
+        const [field, dir] = Object.entries(args.orderBy)[0];
+        items.sort((a, b) => {
+          const av = (a as Record<string, unknown>)[field];
+          const bv = (b as Record<string, unknown>)[field];
+          let cmp: number;
+          if (av instanceof Date && bv instanceof Date) {
+            cmp = av.getTime() - bv.getTime();
+          } else if (typeof av === "string" && typeof bv === "string") {
+            cmp = av.localeCompare(bv);
+          } else {
+            cmp = (av as number) - (bv as number);
+          }
+          return dir === "desc" ? -cmp : cmp;
+        });
+      }
+      return items[0] ?? null;
     }),
     findMany: vi.fn(async (args?: { where?: Record<string, unknown>; orderBy?: unknown; take?: number; skip?: number; include?: unknown; select?: unknown }) => {
       return findMany(store, args);
