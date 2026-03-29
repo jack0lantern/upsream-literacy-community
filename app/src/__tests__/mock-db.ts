@@ -662,6 +662,25 @@ export const mockDb = {
   }),
 };
 
+// Report findMany with relation resolution
+mockDb.report.findMany = vi.fn(async (args?: { where?: Record<string, unknown>; orderBy?: unknown; take?: number; skip?: number; include?: unknown; select?: unknown }) => {
+  let items = [...stores.reports.values()];
+  if (args?.where) items = items.filter((i) => matchesWhere(i, args.where!));
+  if (!args?.include) return items;
+  return items.map((report) => ({
+    ...report,
+    reporter: stores.users.get(report.reporterId)
+      ? { id: report.reporterId, name: stores.users.get(report.reporterId)!.name }
+      : null,
+    reportedUser: stores.users.get(report.reportedUserId)
+      ? { id: report.reportedUserId, name: stores.users.get(report.reportedUserId)!.name }
+      : null,
+    message: stores.messages.get(report.messageId)
+      ? { id: report.messageId, body: stores.messages.get(report.messageId)!.body, conversationId: stores.messages.get(report.messageId)!.conversationId }
+      : null,
+  }));
+});
+
 // UserBlock compound key support: { blockerId_blockedId: { blockerId, blockedId } }
 const baseUserBlock = mockDb.userBlock;
 baseUserBlock.findUnique = vi.fn(async (args: { where: Record<string, unknown> }) => {

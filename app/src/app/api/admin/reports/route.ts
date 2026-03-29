@@ -3,13 +3,17 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { logger } from "@/lib/logger";
 
-async function isAdmin(session: Awaited<ReturnType<typeof auth>>): Promise<boolean> {
-  return session?.user?.role === "admin";
-}
-
 export async function GET(request: NextRequest) {
   const session = await auth();
-  if (!session?.user || !(await isAdmin(session))) {
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { isAdmin: true },
+  });
+  if (!user?.isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
@@ -34,7 +38,15 @@ export async function PATCH(
 ) {
   const { id } = await params;
   const session = await auth();
-  if (!session?.user || !(await isAdmin(session))) {
+  if (!session?.user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const user = await db.user.findUnique({
+    where: { id: session.user.id },
+    select: { isAdmin: true },
+  });
+  if (!user?.isAdmin) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 

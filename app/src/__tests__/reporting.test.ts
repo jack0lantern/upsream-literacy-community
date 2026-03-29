@@ -11,6 +11,7 @@ import { resetStores, stores } from "./mock-db";
 import {
   createRequest,
   parseResponse,
+  seedAdmin,
   seedOnboardedUser,
   seedPendingConversation,
   seedReport,
@@ -30,8 +31,8 @@ import {
   PATCH as reviewReportHandler,
 } from "@/app/api/admin/reports/route";
 
-function setSession(userId: string, role = "user") {
-  mockAuth.mockResolvedValue({ user: { id: userId, name: "Test", email: "t@t.com", role } });
+function setSession(userId: string) {
+  mockAuth.mockResolvedValue({ user: { id: userId, name: "Test", email: "t@t.com" } });
 }
 
 function makeParams(id: string) {
@@ -96,12 +97,12 @@ describe("Reporting", () => {
 
   describe("GET /api/admin/reports", () => {
     it("returns pending reports for admin", async () => {
-      const admin = await seedOnboardedUser();
+      const admin = await seedAdmin();
       const reporter = await seedOnboardedUser();
       const reported = await seedOnboardedUser();
       const { messageId } = seedPendingConversation(reporter.id, reported.id, "Hello there");
       seedReport(reporter.id, reported.id, messageId);
-      setSession(admin.id, "admin");
+      setSession(admin.id);
 
       const req = createRequest("/api/admin/reports?status=pending");
       const res = await listReportsHandler(req);
@@ -110,11 +111,14 @@ describe("Reporting", () => {
       expect(res.status).toBe(200);
       expect(data.length).toBe(1);
       expect(data[0].status).toBe("pending");
+      expect(data[0].reporter.name).toBeTruthy();
+      expect(data[0].reportedUser.name).toBeTruthy();
+      expect(data[0].message.body).toBeTruthy();
     });
 
     it("returns 403 for non-admin users", async () => {
       const user = await seedOnboardedUser();
-      setSession(user.id, "user");
+      setSession(user.id);
 
       const req = createRequest("/api/admin/reports");
       const res = await listReportsHandler(req);
@@ -124,12 +128,12 @@ describe("Reporting", () => {
 
   describe("PATCH /api/admin/reports/[id] dismiss", () => {
     it("sets report status to dismissed", async () => {
-      const admin = await seedOnboardedUser();
+      const admin = await seedAdmin();
       const reporter = await seedOnboardedUser();
       const reported = await seedOnboardedUser();
       const { messageId } = seedPendingConversation(reporter.id, reported.id, "Hello there");
       const reportId = seedReport(reporter.id, reported.id, messageId);
-      setSession(admin.id, "admin");
+      setSession(admin.id);
 
       const req = createRequest(`/api/admin/reports/${reportId}`, {
         method: "PATCH",
@@ -144,12 +148,12 @@ describe("Reporting", () => {
 
   describe("PATCH /api/admin/reports/[id] suspend", () => {
     it("sets reported user status to suspended and report to actioned", async () => {
-      const admin = await seedOnboardedUser();
+      const admin = await seedAdmin();
       const reporter = await seedOnboardedUser();
       const reported = await seedOnboardedUser();
       const { messageId } = seedPendingConversation(reporter.id, reported.id, "Hello there");
       const reportId = seedReport(reporter.id, reported.id, messageId);
-      setSession(admin.id, "admin");
+      setSession(admin.id);
 
       const req = createRequest(`/api/admin/reports/${reportId}`, {
         method: "PATCH",
