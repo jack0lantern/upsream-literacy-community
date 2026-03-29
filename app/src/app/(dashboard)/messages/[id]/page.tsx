@@ -70,14 +70,19 @@ export default function ConversationPage({
       .then((data) => setCurrentUserId(data.id));
   }, []);
 
-  // Fetch conversation info
+  // Fetch conversation info (check both active and pending/request lists)
   useEffect(() => {
-    fetch("/api/conversations")
-      .then((r) => r.json())
-      .then((conversations: ConversationInfo[]) => {
-        const conv = conversations.find((c: ConversationInfo) => c.id === id);
-        if (conv) setConversationInfo(conv);
-      });
+    Promise.all([
+      fetch("/api/conversations").then((r) => r.json()),
+      fetch("/api/conversations?type=requests").then((r) => r.json()),
+    ]).then(([convData, reqData]) => {
+      const allConvs: ConversationInfo[] = [
+        ...(Array.isArray(convData) ? convData : []),
+        ...(Array.isArray(reqData) ? reqData : []),
+      ];
+      const found = allConvs.find((c) => c.id === id);
+      setConversationInfo(found ?? null);
+    });
   }, [id]);
 
   // Fetch messages and poll
@@ -182,7 +187,8 @@ export default function ConversationPage({
   }
 
   async function handleBlock() {
-    await fetch(`/api/users/${otherUser?.id}/block`, { method: "POST" });
+    if (!otherUser?.id) return;
+    await fetch(`/api/users/${otherUser.id}/block`, { method: "POST" });
     router.push("/messages");
   }
 
@@ -227,7 +233,7 @@ export default function ConversationPage({
   const isClosed = conversationInfo?.status === "closed";
   const isPending = conversationInfo?.status === "pending";
   // isSender: true if current user sent the first message (i.e., initiated the request)
-  const isSender = messages.length > 0 && messages[0].sender.id === currentUserId;
+  const isSender = !!currentUserId && messages.length > 0 && messages[0].sender.id === currentUserId;
 
   return (
     <div className="max-w-2xl mx-auto flex flex-col h-[calc(100vh-8rem)]">
@@ -500,6 +506,15 @@ export default function ConversationPage({
                 Tell us what&apos;s wrong. Our team will review within 24 hours.
               </DialogDescription>
             </DialogHeader>
+            {(() => {
+              const reportingMessage = messages.find((m) => m.id === reportingMessageId);
+              return reportingMessage ? (
+                <div className="text-sm text-muted-foreground bg-muted rounded p-2 mb-2">
+                  <p className="font-medium text-xs mb-1">{reportingMessage.sender.name}</p>
+                  <p className="truncate">{reportingMessage.body}</p>
+                </div>
+              ) : null;
+            })()}
             <Textarea
               value={reportMessageReason}
               onChange={(e) => setReportMessageReason(e.target.value)}
