@@ -65,18 +65,43 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // Check if either party has blocked the other
-  const otherMemberForBlock = await db.conversationMember.findFirst({
-    where: { conversationId, userId: { not: session.user.id } },
-    select: { userId: true },
+  // Check conversation status
+  const conversation = await db.conversation.findUnique({
+    where: { id: conversationId },
+    select: { status: true },
   });
 
-  if (otherMemberForBlock) {
+  if (!conversation) {
+    return NextResponse.json({ error: "Conversation not found." }, { status: 404 });
+  }
+
+  if (conversation.status === "closed" || conversation.status === "rejected") {
+    return NextResponse.json(
+      { error: "This conversation has been closed." },
+      { status: 403 }
+    );
+  }
+
+  if (conversation.status === "pending") {
+    return NextResponse.json(
+      { error: "This conversation is awaiting acceptance." },
+      { status: 403 }
+    );
+  }
+
+  // Fetch other conversation member (used for block check and email notification)
+  const otherMember = await db.conversationMember.findFirst({
+    where: { conversationId, userId: { not: session.user.id } },
+    include: { user: { select: { id: true, email: true, status: true } } },
+  });
+
+  // Check if either party has blocked the other
+  if (otherMember?.user) {
     const block = await db.userBlock.findFirst({
       where: {
         OR: [
-          { blockerId: session.user.id, blockedId: otherMemberForBlock.userId },
-          { blockerId: otherMemberForBlock.userId, blockedId: session.user.id },
+          { blockerId: session.user.id, blockedId: otherMember.user.id },
+          { blockerId: otherMember.user.id, blockedId: session.user.id },
         ],
       },
     });
@@ -86,25 +111,6 @@ export async function POST(request: NextRequest) {
         { status: 403 }
       );
     }
-  }
-
-  // Check conversation status
-  const conversation = await db.conversation.findUnique({
-    where: { id: conversationId },
-    select: { status: true },
-  });
-  if (conversation?.status === "closed" || conversation?.status === "rejected") {
-    return NextResponse.json(
-      { error: "This conversation has been closed." },
-      { status: 403 }
-    );
-  }
-
-  if (conversation?.status === "pending") {
-    return NextResponse.json(
-      { error: "This conversation is awaiting acceptance." },
-      { status: 403 }
-    );
   }
 
   // Sanitize message body
@@ -167,11 +173,6 @@ export async function POST(request: NextRequest) {
   }
 
   // Email notification with debouncing
-  const otherMember = await db.conversationMember.findFirst({
-    where: { conversationId, userId: { not: session.user.id } },
-    include: { user: { select: { id: true, email: true, status: true } } },
-  });
-
   if (otherMember?.user && otherMember.user.status === "active" && !otherMember.muted) {
     const lastNotified = emailDebounceMap.get(otherMember.user.id) ?? 0;
     const now = Date.now();
