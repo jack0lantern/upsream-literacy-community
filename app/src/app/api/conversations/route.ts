@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { trackEvent } from "@/lib/analytics";
+import { sanitizeMessageBody } from "@/lib/sanitize";
 
 // List conversations for current user
 export async function GET(request: NextRequest) {
@@ -125,12 +126,12 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { recipientId } = await request.json();
+  const { recipientId, body } = await request.json();
   if (!recipientId) {
-    return NextResponse.json(
-      { error: "recipientId is required" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: "recipientId is required" }, { status: 400 });
+  }
+  if (!body || typeof body !== "string" || !body.trim()) {
+    return NextResponse.json({ error: "body is required" }, { status: 400 });
   }
 
   if (recipientId === session.user.id) {
@@ -140,56 +141,71 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Check recipient exists and is active
   const recipient = await db.user.findUnique({
     where: { id: recipientId, status: "active" },
   });
   if (!recipient) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
+
+  // Check if recipient has blocked sender
+  const block = await db.userBlock.findUnique({
+    where: { blockerId_blockedId: { blockerId: recipientId, blockedId: session.user.id } },
+  });
+  if (block) {
+    return NextResponse.json({ error: "Cannot message this user" }, { status: 403 });
+  }
+
+  // Check for existing conversation (any status)
+  const existingMembership = await db.conversationMember.findFirst({
+    where: {
+      userId: session.user.id,
+      conversation: { members: { some: { userId: recipientId } } },
+    },
+    include: { conversation: { select: { id: true, status: true } } },
+  });
+
+  if (existingMembership?.conversation) {
+    const { id: existingId, status } = existingMembership.conversation;
+    if (status === "rejected") {
+      return NextResponse.json(
+        { error: "Cannot send another request to this user" },
+        { status: 403 }
+      );
+    }
+    return NextResponse.json({ conversationId: existingId }, { status: 200 });
+  }
+
+  const sanitizedBody = sanitizeMessageBody(body.trim());
+  if (!sanitizedBody.trim()) {
     return NextResponse.json(
-      { error: "User not found" },
-      { status: 404 }
+      { error: "Message body is empty after sanitization" },
+      { status: 400 }
     );
   }
 
-  // Check-and-create inside a serializable transaction to prevent race duplicates
-  const { conversationId, created } = await db.$transaction(async (tx) => {
-    const existing = await tx.conversationMember.findFirst({
-      where: {
-        userId: session.user.id,
-        conversation: {
-          members: { some: { userId: recipientId } },
-        },
-      },
-      select: { conversationId: true },
-    });
-
-    if (existing) {
-      return { conversationId: existing.conversationId, created: false };
-    }
-
+  const { conversationId } = await db.$transaction(async (tx) => {
     const conversation = await tx.conversation.create({
       data: {
+        status: "pending",
         members: {
-          create: [
-            { userId: session.user.id },
-            { userId: recipientId },
-          ],
+          create: [{ userId: session.user.id }, { userId: recipientId }],
         },
       },
     });
 
-    return { conversationId: conversation.id, created: true };
+    await tx.message.create({
+      data: {
+        conversationId: conversation.id,
+        senderId: session.user.id,
+        body: sanitizedBody,
+      },
+    });
+
+    return { conversationId: conversation.id };
   });
 
-  if (created) {
-    await trackEvent("conversation_started", session.user.id, {
-      recipientId,
-      conversationId,
-    });
-  }
+  await trackEvent("conversation_started", session.user.id, { recipientId, conversationId });
 
-  return NextResponse.json(
-    { conversationId },
-    { status: created ? 201 : 200 }
-  );
+  return NextResponse.json({ conversationId }, { status: 201 });
 }

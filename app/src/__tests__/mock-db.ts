@@ -532,7 +532,7 @@ baseConversationMember.findMany = vi.fn(async (args?: { where?: Record<string, u
 const origConvCreate = baseConversation.create;
 baseConversation.create = vi.fn(async (args: { data: Record<string, unknown> }) => {
   const id = (args.data.id as string) ?? genId();
-  const conv = { id, status: "active" as const, createdAt: new Date() };
+  const conv = { id, status: (args.data.status as string ?? "active") as "active" | "pending" | "rejected" | "flagged", createdAt: new Date() };
   stores.conversations.set(id, conv);
 
   // Handle nested members create

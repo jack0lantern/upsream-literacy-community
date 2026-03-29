@@ -70,7 +70,7 @@ describe("Messaging System", () => {
 
       const req = createRequest("/api/conversations", {
         method: "POST",
-        body: { recipientId: userB.id },
+        body: { recipientId: userB.id, body: "Hello!" },
       });
 
       const res = await conversationCreateHandler(req);
@@ -92,7 +92,7 @@ describe("Messaging System", () => {
 
       const req = createRequest("/api/conversations", {
         method: "POST",
-        body: { recipientId: userB.id },
+        body: { recipientId: userB.id, body: "Hello!" },
       });
 
       const res = await conversationCreateHandler(req);
@@ -111,7 +111,7 @@ describe("Messaging System", () => {
 
       const req = createRequest("/api/conversations", {
         method: "POST",
-        body: { recipientId: user.id },
+        body: { recipientId: user.id, body: "Hello!" },
       });
 
       const res = await conversationCreateHandler(req);
@@ -124,7 +124,7 @@ describe("Messaging System", () => {
 
       const req = createRequest("/api/conversations", {
         method: "POST",
-        body: { recipientId: "non_existent" },
+        body: { recipientId: "non_existent", body: "Hello!" },
       });
 
       const res = await conversationCreateHandler(req);
@@ -138,7 +138,7 @@ describe("Messaging System", () => {
 
       const req = createRequest("/api/conversations", {
         method: "POST",
-        body: { recipientId: userB.id },
+        body: { recipientId: userB.id, body: "Hello!" },
       });
 
       await conversationCreateHandler(req);
