@@ -1,11 +1,14 @@
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { auth } from "@/lib/auth";
+import { db } from "@/lib/db";
+import { Badge } from "@/components/ui/badge";
 
 const ADMIN_NAV = [
   { href: "/admin", label: "Overview" },
   { href: "/admin/users", label: "Users" },
   { href: "/admin/flagged", label: "Flagged" },
+  { href: "/admin/reports", label: "Reports" },
   { href: "/admin/keywords", label: "Keywords" },
   { href: "/admin/problems", label: "Problems" },
 ];
@@ -20,6 +23,8 @@ export default async function AdminLayout({
 
   const isAdmin = (session.user as { isAdmin?: boolean }).isAdmin;
   if (!isAdmin) redirect("/dashboard");
+
+  const pendingReportsCount = await db.report.count({ where: { status: "pending" } });
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -36,9 +41,14 @@ export default async function AdminLayout({
               <Link
                 key={item.href}
                 href={item.href}
-                className="px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+                className="px-3 py-2 text-sm rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors flex items-center gap-1.5"
               >
                 {item.label}
+                {item.href === "/admin/reports" && pendingReportsCount > 0 && (
+                  <Badge variant="destructive" className="text-xs px-1.5 py-0 h-4">
+                    {pendingReportsCount}
+                  </Badge>
+                )}
               </Link>
             ))}
           </nav>
