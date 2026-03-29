@@ -13,6 +13,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetTrigger, SheetTitle } from "@/components/ui/sheet";
+import { ChevronDown } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { MatchCardSkeleton } from "@/components/loading-skeleton";
@@ -89,13 +90,29 @@ export default function DashboardPage() {
   // Filters
   const [sort, setSort] = useState("score");
   const [filterRole, setFilterRole] = useState("");
-  const [filterChallenge, setFilterChallenge] = useState("");
+  const [filterChallenges, setFilterChallenges] = useState<Set<string>>(new Set());
   const [filterState, setFilterState] = useState("");
   const [filterStateScope, setFilterStateScope] = useState("");
   const [filterUrbanicity, setFilterUrbanicity] = useState("");
   const [filterSizeBucket, setFilterSizeBucket] = useState("");
   const [filterCharter, setFilterCharter] = useState("");
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
+
+  // Current user's selected challenges
+  const [myProblemIds, setMyProblemIds] = useState<Set<string>>(new Set());
+  const [showMoreChallenges, setShowMoreChallenges] = useState(false);
+
+  // Stable string key for filterChallenges to use in useCallback deps
+  const filterChallengesKey = [...filterChallenges].sort().join(",");
+
+  function toggleChallenge(id: string) {
+    setFilterChallenges((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   // Problem lookup map
   const problemMap = problems.reduce(
@@ -108,13 +125,21 @@ export default function DashboardPage() {
       .then((res) => res.json())
       .then(setProblems)
       .catch(() => {});
+    fetch("/api/profile")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.problems) {
+          setMyProblemIds(new Set(data.problems.map((p: { id: string }) => p.id)));
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const fetchMatches = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ page: String(page), sort });
     if (filterRole) params.set("role", filterRole);
-    if (filterChallenge) params.set("problemIds", filterChallenge);
+    if (filterChallenges.size > 0) params.set("problemIds", [...filterChallenges].join(","));
     if (filterState) params.set("state", filterState);
     if (filterStateScope) params.set("stateScope", filterStateScope);
     if (filterUrbanicity) params.set("urbanicity", filterUrbanicity);
@@ -127,7 +152,8 @@ export default function DashboardPage() {
     setTotal(data.total ?? 0);
     setTotalPages(data.totalPages ?? 1);
     setLoading(false);
-  }, [page, sort, filterRole, filterChallenge, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sort, filterRole, filterChallengesKey, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   useEffect(() => {
     fetchMatches();
@@ -135,7 +161,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filterRole, filterChallenge, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
+  }, [filterRole, filterChallengesKey, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   function buildMatchSummary(match: Match): string {
     const parts: string[] = [];
@@ -182,10 +208,36 @@ export default function DashboardPage() {
     traditional: "Traditional only",
   };
 
+  const activeFilterCount =
+    (filterRole ? 1 : 0) +
+    filterChallenges.size +
+    (filterState || filterStateScope ? 1 : 0) +
+    (filterUrbanicity ? 1 : 0) +
+    (filterSizeBucket ? 1 : 0) +
+    (filterCharter ? 1 : 0);
+
+  const challengeBubble = (p: ProblemStatement) => (
+    <button
+      key={p.id}
+      type="button"
+      onClick={() => toggleChallenge(p.id)}
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs leading-tight transition-colors cursor-pointer ${
+        filterChallenges.has(p.id)
+          ? "bg-primary text-primary-foreground border-primary shadow-sm"
+          : "bg-background text-foreground border-border hover:bg-accent hover:border-accent-foreground/20"
+      }`}
+    >
+      {p.label}
+    </button>
+  );
+
   const filterContent = (
-    <div className="space-y-4">
+    <div className="space-y-5">
+      {/* Sort */}
       <div>
-        <label className="text-sm font-medium mb-1.5 block">Sort by</label>
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+          Sort by
+        </label>
         <Select value={sort} onValueChange={(v) => v && setSort(v)}>
           <SelectTrigger>
             <SelectValue>{(v: string) => SORT_LABELS[v] ?? v}</SelectValue>
@@ -196,8 +248,59 @@ export default function DashboardPage() {
           </SelectContent>
         </Select>
       </div>
+
+      <hr className="border-border" />
+
+      {/* Challenges */}
       <div>
-        <label className="text-sm font-medium mb-1.5 block">Role</label>
+        <div className="flex items-center justify-between mb-2.5">
+          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Challenges
+          </label>
+          {filterChallenges.size > 0 && (
+            <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+              {filterChallenges.size}
+            </Badge>
+          )}
+        </div>
+        {myProblemIds.size > 0 && (
+          <div className="space-y-2">
+            <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wide">
+              My challenges
+            </p>
+            <div className="flex flex-wrap gap-1.5">
+              {problems.filter((p) => myProblemIds.has(p.id)).map(challengeBubble)}
+            </div>
+          </div>
+        )}
+        {problems.some((p) => !myProblemIds.has(p.id)) && (
+          <div className="mt-3">
+            <button
+              type="button"
+              onClick={() => setShowMoreChallenges((v) => !v)}
+              className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wide hover:text-foreground transition-colors mb-2"
+            >
+              <ChevronDown
+                className={`size-3 transition-transform duration-200 ${showMoreChallenges ? "rotate-180" : ""}`}
+              />
+              More challenges
+            </button>
+            {showMoreChallenges && (
+              <div className="flex flex-wrap gap-1.5 animate-in fade-in-0 slide-in-from-top-1 duration-200">
+                {problems.filter((p) => !myProblemIds.has(p.id)).map(challengeBubble)}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      <hr className="border-border" />
+
+      {/* People */}
+      <div>
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+          Role
+        </label>
         <Select value={filterRole} onValueChange={(v) => setFilterRole(v ?? "")}>
           <SelectTrigger>
             <SelectValue placeholder="All roles">
@@ -214,126 +317,116 @@ export default function DashboardPage() {
           </SelectContent>
         </Select>
       </div>
-      <div>
-        <label className="text-sm font-medium mb-1.5 block">Challenge</label>
-        <Select value={filterChallenge} onValueChange={(v) => setFilterChallenge(v ?? "")}>
-          <SelectTrigger>
-            <SelectValue placeholder="Any challenge">
-              {(v: string) => problemMap[v] ?? "Any challenge"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">Any challenge</SelectItem>
-            {problems.map((p) => (
-              <SelectItem key={p.id} value={p.id}>
-                {p.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+
+      <hr className="border-border" />
+
+      {/* District */}
+      <div className="space-y-3">
+        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block">
+          District
+        </label>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">State</label>
+          <Select
+            value={filterStateScope || filterState}
+            onValueChange={(v) => {
+              if (v === "same" || v === "different") {
+                setFilterStateScope(v);
+                setFilterState("");
+              } else {
+                setFilterStateScope("");
+                setFilterState(v ?? "");
+              }
+            }}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="All states">
+                {(v: string) => STATE_SCOPE_LABELS[v] ?? (v || "All states")}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All states</SelectItem>
+              <SelectItem value="same">Same state as me</SelectItem>
+              <SelectItem value="different">Different state</SelectItem>
+              {US_STATES.map((s) => (
+                <SelectItem key={s} value={s}>
+                  {s}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+          <Select value={filterUrbanicity} onValueChange={(v) => setFilterUrbanicity(v ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="All types">
+                {(v: string) => URBANICITY_LABELS[v] ?? "All types"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All types</SelectItem>
+              <SelectItem value="urban">Urban</SelectItem>
+              <SelectItem value="suburban">Suburban</SelectItem>
+              <SelectItem value="town">Town</SelectItem>
+              <SelectItem value="rural">Rural</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Size</label>
+          <Select value={filterSizeBucket} onValueChange={(v) => setFilterSizeBucket(v ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="All sizes">
+                {(v: string) => SIZE_LABELS[v] ?? "All sizes"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All sizes</SelectItem>
+              <SelectItem value="small">Small (&lt;3K)</SelectItem>
+              <SelectItem value="medium">Medium (3K-15K)</SelectItem>
+              <SelectItem value="large">Large (15K-50K)</SelectItem>
+              <SelectItem value="very_large">Very Large (50K+)</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div>
+          <label className="text-xs text-muted-foreground mb-1 block">Charter</label>
+          <Select value={filterCharter} onValueChange={(v) => setFilterCharter(v ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="All">
+                {(v: string) => CHARTER_LABELS[v] ?? "All"}
+              </SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All</SelectItem>
+              <SelectItem value="charter">Charter only</SelectItem>
+              <SelectItem value="traditional">Traditional only</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      <div>
-        <label className="text-sm font-medium mb-1.5 block">State</label>
-        <Select
-          value={filterStateScope || filterState}
-          onValueChange={(v) => {
-            if (v === "same" || v === "different") {
-              setFilterStateScope(v);
+
+      {/* Clear */}
+      {activeFilterCount > 0 && (
+        <div className="pt-1">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs"
+            onClick={() => {
+              setFilterRole("");
+              setFilterChallenges(new Set());
               setFilterState("");
-            } else {
               setFilterStateScope("");
-              setFilterState(v ?? "");
-            }
-          }}
-        >
-          <SelectTrigger>
-            <SelectValue placeholder="All states">
-              {(v: string) => STATE_SCOPE_LABELS[v] ?? (v || "All states")}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All states</SelectItem>
-            <SelectItem value="same">Same state as me</SelectItem>
-            <SelectItem value="different">Different state</SelectItem>
-            {US_STATES.map((s) => (
-              <SelectItem key={s} value={s}>
-                {s}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="text-sm font-medium mb-1.5 block">
-          District type
-        </label>
-        <Select value={filterUrbanicity} onValueChange={(v) => setFilterUrbanicity(v ?? "")}>
-          <SelectTrigger>
-            <SelectValue placeholder="All types">
-              {(v: string) => URBANICITY_LABELS[v] ?? "All types"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All types</SelectItem>
-            <SelectItem value="urban">Urban</SelectItem>
-            <SelectItem value="suburban">Suburban</SelectItem>
-            <SelectItem value="town">Town</SelectItem>
-            <SelectItem value="rural">Rural</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="text-sm font-medium mb-1.5 block">
-          District size
-        </label>
-        <Select value={filterSizeBucket} onValueChange={(v) => setFilterSizeBucket(v ?? "")}>
-          <SelectTrigger>
-            <SelectValue placeholder="All sizes">
-              {(v: string) => SIZE_LABELS[v] ?? "All sizes"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All sizes</SelectItem>
-            <SelectItem value="small">Small (&lt;3K)</SelectItem>
-            <SelectItem value="medium">Medium (3K-15K)</SelectItem>
-            <SelectItem value="large">Large (15K-50K)</SelectItem>
-            <SelectItem value="very_large">Very Large (50K+)</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      <div>
-        <label className="text-sm font-medium mb-1.5 block">
-          Charter (LEA)
-        </label>
-        <Select value={filterCharter} onValueChange={(v) => setFilterCharter(v ?? "")}>
-          <SelectTrigger>
-            <SelectValue placeholder="All">
-              {(v: string) => CHARTER_LABELS[v] ?? "All"}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All</SelectItem>
-            <SelectItem value="charter">Charter district only</SelectItem>
-            <SelectItem value="traditional">Traditional only</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-      {(filterRole || filterChallenge || filterState || filterStateScope || filterUrbanicity || filterSizeBucket || filterCharter) && (
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => {
-            setFilterRole("");
-            setFilterChallenge("");
-            setFilterState("");
-            setFilterStateScope("");
-            setFilterUrbanicity("");
-            setFilterSizeBucket("");
-            setFilterCharter("");
-          }}
-        >
-          Clear filters
-        </Button>
+              setFilterUrbanicity("");
+              setFilterSizeBucket("");
+              setFilterCharter("");
+            }}
+          >
+            Clear all filters ({activeFilterCount})
+          </Button>
+        </div>
       )}
     </div>
   );
@@ -341,9 +434,9 @@ export default function DashboardPage() {
   return (
     <div className="flex gap-6">
       {/* Desktop filter sidebar */}
-      <aside className="hidden lg:block w-64 shrink-0">
-        <div className="sticky top-20">
-          <h2 className="font-semibold mb-4">Filters</h2>
+      <aside className="hidden lg:block w-72 shrink-0">
+        <div className="sticky top-20 rounded-xl border border-border bg-card p-5 shadow-sm">
+          <h2 className="text-sm font-semibold mb-4">Filters</h2>
           {filterContent}
         </div>
       </aside>
@@ -352,21 +445,30 @@ export default function DashboardPage() {
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Discover Matches</h1>
-            <p className="text-muted-foreground text-sm mt-1">
+            <h1 className="text-xl font-semibold tracking-tight">Discover Matches</h1>
+            <p className="text-muted-foreground text-xs mt-1">
               {loading ? "Finding matches..." : `${total} peers found`}
             </p>
           </div>
           {/* Mobile filter button */}
           <Sheet open={mobileFilterOpen} onOpenChange={setMobileFilterOpen}>
             <SheetTrigger
-              render={(props) => <Button variant="outline" size="sm" className="lg:hidden" {...props}>Filters</Button>}
+              render={(props) => (
+                <Button variant="outline" size="sm" className="lg:hidden gap-1.5 text-xs" {...props}>
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-0.5">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+              )}
             />
-            <SheetContent side="bottom" className="h-[70vh] rounded-t-xl">
-              <SheetTitle>Filters</SheetTitle>
-              <div className="mt-4">{filterContent}</div>
+            <SheetContent side="bottom" className="h-[80vh] rounded-t-xl">
+              <SheetTitle className="text-sm font-semibold">Filters</SheetTitle>
+              <div className="mt-4 overflow-y-auto max-h-[calc(80vh-8rem)]">{filterContent}</div>
               <Button
-                className="w-full mt-6"
+                className="w-full mt-4 text-xs"
                 onClick={() => setMobileFilterOpen(false)}
               >
                 Apply filters
@@ -376,106 +478,111 @@ export default function DashboardPage() {
         </div>
 
         {loading ? (
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-2">
             {Array.from({ length: 6 }).map((_, i) => (
               <MatchCardSkeleton key={i} />
             ))}
           </div>
         ) : matches.length === 0 ? (
-          <EmptyState
-            title="No matches yet"
-            description="We couldn't find peers matching your profile right now. Try adjusting your filters, or check back as more members join."
-            action={
-              <div className="flex flex-col gap-2 items-center">
+          <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <EmptyState
+              title="No matches yet"
+              description="We couldn't find peers matching your profile right now. Try adjusting your filters, or check back as more members join."
+              action={
                 <Link href="/profile">
-                  <Button variant="outline">Update your challenges</Button>
+                  <Button variant="outline" size="sm" className="text-xs">
+                    Update your challenges
+                  </Button>
                 </Link>
-              </div>
-            }
-          />
+              }
+            />
+          </div>
         ) : (
           <>
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2">
               {matches.map((match) => (
                 <Link
                   key={match.user.id}
                   href={`/profile/${match.user.id}`}
                 >
-                  <Card className="hover:shadow-md transition-shadow h-full">
-                    <CardHeader className="flex flex-row items-start gap-3 pb-3">
+                  <div className="group rounded-xl border border-border bg-card p-4 shadow-sm hover:shadow-md hover:border-border/80 transition-all h-full">
+                    {/* Header */}
+                    <div className="flex items-start gap-3 mb-3">
                       <UserAvatar name={match.user.name} />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2">
-                          <h3 className="font-semibold truncate">
+                          <h3 className="text-sm font-semibold truncate group-hover:text-primary transition-colors">
                             {match.user.name}
                           </h3>
-                          <Badge
-                            variant="secondary"
-                            className="shrink-0 text-xs"
-                          >
+                          <span className="shrink-0 inline-flex items-center rounded-full bg-primary/10 text-primary px-2 py-0.5 text-[11px] font-semibold">
                             {match.score}%
-                          </Badge>
+                          </span>
                         </div>
-                        <p className="text-sm text-muted-foreground">
+                        <p className="text-xs text-muted-foreground">
                           {match.user.role
                             ? ROLE_LABELS[match.user.role] ?? match.user.role
                             : "Member"}
                         </p>
                         {match.district && (
-                          <p className="text-xs text-muted-foreground">
+                          <p className="text-[11px] text-muted-foreground/70 mt-0.5">
                             {match.district.name}, {match.district.state}
-                            {match.district.isCharterAgency === true && " · Charter LEA"}
+                            {match.district.isCharterAgency === true && " · Charter"}
                             {match.district.totalEnrollment &&
                               ` · ${match.district.totalEnrollment.toLocaleString()} students`}
                           </p>
                         )}
                       </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-3">
-                      <p className="text-sm text-muted-foreground">
-                        {buildMatchSummary(match)}
-                      </p>
-                      {match.sharedProblems.length > 0 && (
-                        <div className="flex flex-wrap gap-1.5">
-                          {match.sharedProblems.map((pid) => (
-                            <Badge
-                              key={pid}
-                              variant="outline"
-                              className="text-xs font-normal"
-                            >
-                              {problemMap[pid] ?? "Shared challenge"}
-                            </Badge>
-                          ))}
-                        </div>
-                      )}
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">
-                          {getActivityLabel(match.user.lastActiveAt)}
-                        </span>
+                    </div>
+
+                    {/* Summary */}
+                    <p className="text-xs text-muted-foreground mb-2.5">
+                      {buildMatchSummary(match)}
+                    </p>
+
+                    {/* Shared challenge bubbles */}
+                    {match.sharedProblems.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2.5">
+                        {match.sharedProblems.map((pid) => (
+                          <span
+                            key={pid}
+                            className="inline-flex items-center rounded-full border border-border bg-background px-2.5 py-1 text-[11px] leading-tight text-foreground"
+                          >
+                            {problemMap[pid] ?? "Shared challenge"}
+                          </span>
+                        ))}
                       </div>
-                    </CardContent>
-                  </Card>
+                    )}
+
+                    {/* Activity */}
+                    <div className="flex items-center pt-2 border-t border-border/50">
+                      <span className="text-[11px] text-muted-foreground/60">
+                        {getActivityLabel(match.user.lastActiveAt)}
+                      </span>
+                    </div>
+                  </div>
                 </Link>
               ))}
             </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex justify-center gap-2 mt-8">
+              <div className="flex items-center justify-center gap-3 mt-8">
                 <Button
                   variant="outline"
                   size="sm"
+                  className="text-xs"
                   onClick={() => setPage((p) => Math.max(1, p - 1))}
                   disabled={page <= 1}
                 >
                   Previous
                 </Button>
-                <span className="flex items-center text-sm text-muted-foreground">
-                  Page {page} of {totalPages}
+                <span className="text-xs text-muted-foreground tabular-nums">
+                  {page} / {totalPages}
                 </span>
                 <Button
                   variant="outline"
                   size="sm"
+                  className="text-xs"
                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                   disabled={page >= totalPages}
                 >

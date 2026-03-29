@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { Search } from "lucide-react";
 
 interface District {
   id: string;
@@ -33,6 +34,7 @@ export default function SignupPage() {
   const [districtQuery, setDistrictQuery] = useState("");
   const [districtResults, setDistrictResults] = useState<District[]>([]);
   const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
+  const [districtFocused, setDistrictFocused] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -155,6 +157,7 @@ export default function SignupPage() {
           <div className="space-y-2">
             <Label htmlFor="district">District</Label>
             <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
               <Input
                 id="district"
                 value={selectedDistrict ? selectedDistrict.name : districtQuery}
@@ -162,8 +165,11 @@ export default function SignupPage() {
                   setDistrictQuery(e.target.value);
                   setSelectedDistrict(null);
                 }}
-                placeholder="Search for your district..."
+                onFocus={() => setDistrictFocused(true)}
+                onBlur={() => setTimeout(() => setDistrictFocused(false), 150)}
+                placeholder="Start typing your district name..."
                 autoComplete="off"
+                className="pl-8"
               />
               {selectedDistrict && (
                 <button
@@ -179,6 +185,11 @@ export default function SignupPage() {
                 </button>
               )}
             </div>
+            {!selectedDistrict && districtFocused && districtResults.length === 0 && (
+              <div className="border rounded-md px-3 py-2 text-sm text-muted-foreground">
+                Type to search across 18,000+ districts
+              </div>
+            )}
             {districtResults.length > 0 && !selectedDistrict && (
               <div className="border rounded-md divide-y max-h-48 overflow-y-auto">
                 {districtResults.map((d) => (
