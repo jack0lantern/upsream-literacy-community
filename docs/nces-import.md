@@ -95,8 +95,8 @@ The CSV columns map to the District Prisma model as follows:
 
 | Field | Derivation | Notes |
 |---|---|---|
-| urbanicity | From localeCode | Enum: "urban" (11–12), "suburban" (21–22), "town" (31–33), "rural" (41–43) |
-| sizeBucket | From totalEnrollment | Enum: "very_small" (<500), "small" (500–5K), "medium" (5K–30K), "large" (30K–100K), "very_large" (>100K) |
+| urbanicity | From localeCode | Enum: "urban" (11–13), "suburban" (21–23), "town" (31–33), "rural" (41–43) |
+| sizeBucket | From totalEnrollment | Enum: "small" (<3K), "medium" (3K–15K), "large" (15K–50K), "very_large" (50K+) |
 | frlPct | (FREE_REDUCED_LUNCH_ELIGIBLE / TOTAL) × 100 | Percentage, rounded to 1 decimal. Null if TOTAL is 0 or missing. |
 | ellPct | (ENGLISH_LEARNERS / TOTAL) × 100 | Percentage, rounded to 1 decimal. Null if TOTAL is 0 or missing. |
 
