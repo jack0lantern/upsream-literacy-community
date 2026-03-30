@@ -128,10 +128,14 @@ const PROBLEM_STATEMENTS = [
   },
 ];
 
-// Sample districts for development (representative spread)
+// Sample districts for development (representative spread).
+// These use real NCES LEA IDs from the 2022-23 CCD so they align with the
+// NCES import. The synthetic charter entry (0999999) is dev-only.
+// Only seeded when SEED_SAMPLE_DISTRICTS=1 (e.g. CI smoke tests without a
+// full NCES import). In normal dev/prod, districts come from the NCES import.
 const SAMPLE_DISTRICTS = [
   {
-    ncesId: "0100001",
+    ncesId: "0100390",
     name: "Jefferson County Schools",
     state: "AL",
     localeCode: "21",
@@ -143,7 +147,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "0600001",
+    ncesId: "0622710",
     name: "Los Angeles Unified",
     state: "CA",
     localeCode: "11",
@@ -155,7 +159,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "3600001",
+    ncesId: "3620580",
     name: "New York City DOE",
     state: "NY",
     localeCode: "11",
@@ -167,7 +171,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "1700001",
+    ncesId: "1739270",
     name: "Springfield SD 186",
     state: "IL",
     localeCode: "12",
@@ -179,7 +183,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "4800001",
+    ncesId: "4813440",
     name: "Dripping Springs ISD",
     state: "TX",
     localeCode: "21",
@@ -191,7 +195,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "2900001",
+    ncesId: "2923820",
     name: "Macon County R-1",
     state: "MO",
     localeCode: "43",
@@ -203,7 +207,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "2000001",
+    ncesId: "2000030",
     name: "Abilene USD 435",
     state: "KS",
     localeCode: "33",
@@ -215,7 +219,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "0800001",
+    ncesId: "0804020",
     name: "Douglas County School District",
     state: "CO",
     localeCode: "21",
@@ -227,7 +231,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "1200001",
+    ncesId: "1200870",
     name: "Hillsborough County Public Schools",
     state: "FL",
     localeCode: "11",
@@ -239,7 +243,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "4200001",
+    ncesId: "4218990",
     name: "Philadelphia City SD",
     state: "PA",
     localeCode: "11",
@@ -251,7 +255,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "2700001",
+    ncesId: "2707410",
     name: "Rosemount-Apple Valley-Eagan",
     state: "MN",
     localeCode: "21",
@@ -263,7 +267,7 @@ const SAMPLE_DISTRICTS = [
     isCharterAgency: false,
   },
   {
-    ncesId: "5500001",
+    ncesId: "5500060",
     name: "Ashland School District",
     state: "WI",
     localeCode: "33",
@@ -303,16 +307,18 @@ async function main() {
   }
   console.log(`   ✓ ${PROBLEM_STATEMENTS.length} problem statements seeded\n`);
 
-  // Seed sample districts
-  console.log("🏫 Seeding sample districts...");
-  for (const d of SAMPLE_DISTRICTS) {
-    await prisma.district.upsert({
-      where: { ncesId: d.ncesId },
-      update: d,
-      create: d,
-    });
+  // Seed sample districts (only when explicitly requested, e.g. CI smoke tests)
+  if (process.env.SEED_SAMPLE_DISTRICTS === "1") {
+    console.log("🏫 Seeding sample districts (SEED_SAMPLE_DISTRICTS=1)...");
+    for (const d of SAMPLE_DISTRICTS) {
+      await prisma.district.upsert({
+        where: { ncesId: d.ncesId },
+        update: d,
+        create: d,
+      });
+    }
+    console.log(`   ✓ ${SAMPLE_DISTRICTS.length} sample districts seeded\n`);
   }
-  console.log(`   ✓ ${SAMPLE_DISTRICTS.length} sample districts seeded\n`);
 
   // Create dev users (admin + 16 test accounts)
   if (process.env.NODE_ENV !== "production") {
@@ -322,7 +328,7 @@ async function main() {
 
     // Assign admin to Springfield SD 186 so matching works out of the box
     const adminDistrict = await prisma.district.findUnique({
-      where: { ncesId: "1700001" },
+      where: { ncesId: "1739270" },
     });
 
     console.log("👤 Creating dev admin user...");
@@ -363,11 +369,34 @@ async function main() {
     }
     console.log("   ✓ Admin: admin@upstream.dev / admin123");
 
-    // Look up seeded districts by ncesId so we can assign users to them
+    // Look up districts by ncesId directly from the DB (populated by NCES import
+    // or by SAMPLE_DISTRICTS when SEED_SAMPLE_DISTRICTS=1)
+    const ncesIdsNeeded = [
+      "0100390", // Jefferson County Schools, AL
+      "0622710", // Los Angeles Unified, CA
+      "3620580", // New York City DOE, NY
+      "1739270", // Springfield SD 186, IL
+      "4813440", // Dripping Springs ISD, TX
+      "2923820", // Macon County R-1, MO
+      "2000030", // Abilene USD 435, KS
+      "0804020", // Douglas County SD, CO
+      "1200870", // Hillsborough County PS, FL
+      "4218990", // Philadelphia City SD, PA
+      "2707410", // Rosemount-Apple Valley-Eagan, MN
+      "5500060", // Ashland School District, WI
+      "0999999", // Sample Charter (dev-only)
+    ];
     const districtsByNces = new Map<string, string>();
-    for (const d of SAMPLE_DISTRICTS) {
-      const found = await prisma.district.findUnique({ where: { ncesId: d.ncesId } });
-      if (found) districtsByNces.set(d.ncesId, found.id);
+    for (const ncesId of ncesIdsNeeded) {
+      const found = await prisma.district.findUnique({ where: { ncesId } });
+      if (found) districtsByNces.set(ncesId, found.id);
+    }
+
+    if (districtsByNces.size === 0) {
+      console.log(
+        "   ⚠ No districts found. Run 'make import-nces' first, or set SEED_SAMPLE_DISTRICTS=1.\n" +
+          "     Seed users will be created without district assignments.\n",
+      );
     }
 
     // 16 seed users — spread across districts, roles, urbanicities, and sizes
@@ -383,7 +412,7 @@ async function main() {
         email: "maria.santos@jefferson.edu",
         name: "Maria Santos",
         role: "literacy_director",
-        districtNcesId: "0100001", // Jefferson County, AL — suburban, large
+        districtNcesId: "0100390", // Jefferson County, AL — suburban, large
         bio: "15 years in literacy leadership. Focused on SoR implementation across 40+ schools.",
         problemSortOrders: [2, 12, 14],
       },
@@ -391,7 +420,7 @@ async function main() {
         email: "james.oconnor@lausd.edu",
         name: "James O'Connor",
         role: "curriculum_coordinator",
-        districtNcesId: "0600001", // LA Unified, CA — urban, very_large
+        districtNcesId: "0622710", // LA Unified, CA — urban, very_large
         bio: "Coordinating ELA curriculum adoption for the nation's second-largest district.",
         problemSortOrders: [1, 4, 18],
       },
@@ -399,7 +428,7 @@ async function main() {
         email: "priya.patel@nycdoe.edu",
         name: "Priya Patel",
         role: "mtss_coordinator",
-        districtNcesId: "3600001", // NYC DOE, NY — urban, very_large
+        districtNcesId: "3620580", // NYC DOE, NY — urban, very_large
         bio: "Building MTSS frameworks that serve nearly a million students across five boroughs.",
         problemSortOrders: [9, 10, 6],
       },
@@ -407,7 +436,7 @@ async function main() {
         email: "derek.washington@springfield186.edu",
         name: "Derek Washington",
         role: "literacy_coach",
-        districtNcesId: "1700001", // Springfield SD 186, IL — urban, medium
+        districtNcesId: "1739270", // Springfield SD 186, IL — urban, medium
         bio: "Former reading specialist turned coach. Passionate about closing equity gaps.",
         problemSortOrders: [19, 12, 11],
       },
@@ -415,7 +444,7 @@ async function main() {
         email: "sarah.chen@dsisd.edu",
         name: "Sarah Chen",
         role: "literacy_director",
-        districtNcesId: "4800001", // Dripping Springs ISD, TX — suburban, medium
+        districtNcesId: "4813440", // Dripping Springs ISD, TX — suburban, medium
         bio: "Leading literacy strategy in a fast-growing suburban district.",
         problemSortOrders: [1, 3, 5],
       },
@@ -423,7 +452,7 @@ async function main() {
         email: "tom.redcloud@macon.k12.mo.us",
         name: "Tom Redcloud",
         role: "other",
-        districtNcesId: "2900001", // Macon County R-1, MO — rural, small
+        districtNcesId: "2923820", // Macon County R-1, MO — rural, small
         bio: "Superintendent wearing many hats in a small rural district. Literacy is priority #1.",
         problemSortOrders: [15, 16, 2],
       },
@@ -431,7 +460,7 @@ async function main() {
         email: "lisa.martinez@usd435.edu",
         name: "Lisa Martinez",
         role: "literacy_coach",
-        districtNcesId: "2000001", // Abilene USD 435, KS — town, small
+        districtNcesId: "2000030", // Abilene USD 435, KS — town, small
         bio: "Only literacy coach in the district. Supporting K-8 teachers across 3 buildings.",
         problemSortOrders: [13, 14, 7],
       },
@@ -439,7 +468,7 @@ async function main() {
         email: "kevin.nguyen@dcsdk12.edu",
         name: "Kevin Nguyen",
         role: "curriculum_coordinator",
-        districtNcesId: "0800001", // Douglas County, CO — suburban, very_large
+        districtNcesId: "0804020", // Douglas County, CO — suburban, very_large
         bio: "Aligning curriculum K-12 in a high-performing suburban district.",
         problemSortOrders: [3, 4, 8],
       },
@@ -447,7 +476,7 @@ async function main() {
         email: "angela.brooks@hcps.edu",
         name: "Angela Brooks",
         role: "mtss_coordinator",
-        districtNcesId: "1200001", // Hillsborough County, FL — urban, very_large
+        districtNcesId: "1200870", // Hillsborough County, FL — urban, very_large
         bio: "Designing intervention systems for 220k students with diverse needs.",
         problemSortOrders: [9, 10, 7],
       },
@@ -455,7 +484,7 @@ async function main() {
         email: "robert.kim@philasd.edu",
         name: "Robert Kim",
         role: "literacy_director",
-        districtNcesId: "4200001", // Philadelphia City SD, PA — urban, very_large
+        districtNcesId: "4218990", // Philadelphia City SD, PA — urban, very_large
         bio: "Navigating state mandates while addressing deep equity challenges.",
         problemSortOrders: [20, 19, 2],
       },
@@ -463,7 +492,7 @@ async function main() {
         email: "jennifer.larson@district196.edu",
         name: "Jennifer Larson",
         role: "curriculum_coordinator",
-        districtNcesId: "2700001", // Rosemount-Apple Valley-Eagan, MN — suburban, large
+        districtNcesId: "2707410", // Rosemount-Apple Valley-Eagan, MN — suburban, large
         bio: "Building knowledge-rich ELA programming in a diverse suburban district.",
         problemSortOrders: [4, 1, 18],
       },
@@ -471,7 +500,7 @@ async function main() {
         email: "marcus.johnson@ashland.k12.wi.us",
         name: "Marcus Johnson",
         role: "literacy_coach",
-        districtNcesId: "5500001", // Ashland, WI — town, small
+        districtNcesId: "5500060", // Ashland, WI — town, small
         bio: "Supporting rural teachers with evidence-based reading instruction.",
         problemSortOrders: [12, 13, 15],
       },
@@ -479,7 +508,7 @@ async function main() {
         email: "diana.flores@lausd.edu",
         name: "Diana Flores",
         role: "literacy_director",
-        districtNcesId: "0600001", // LA Unified, CA — urban, very_large
+        districtNcesId: "0622710", // LA Unified, CA — urban, very_large
         bio: "Focused on ELL literacy outcomes in the largest ELL-serving district in the country.",
         problemSortOrders: [18, 5, 6],
       },
@@ -487,7 +516,7 @@ async function main() {
         email: "brian.murphy@hcps.edu",
         name: "Brian Murphy",
         role: "other",
-        districtNcesId: "1200001", // Hillsborough County, FL — urban, very_large
+        districtNcesId: "1200870", // Hillsborough County, FL — urban, very_large
         bio: "Assistant superintendent overseeing curriculum and instruction.",
         problemSortOrders: [17, 16, 11],
       },
@@ -495,7 +524,7 @@ async function main() {
         email: "rachel.abrams@springfield186.edu",
         name: "Rachel Abrams",
         role: "mtss_coordinator",
-        districtNcesId: "1700001", // Springfield SD 186, IL — urban, medium
+        districtNcesId: "1739270", // Springfield SD 186, IL — urban, medium
         bio: "Implementing dyslexia screening and building tiered intervention supports.",
         problemSortOrders: [7, 9, 6],
       },
