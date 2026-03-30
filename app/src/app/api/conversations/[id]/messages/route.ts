@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
+import {
+  filterMessagesVisibleToViewer,
+  getBlockedUserIdsForViewer,
+} from "@/lib/message-visibility";
 
 // Get messages for a conversation (supports polling with ?since=)
 export async function GET(
@@ -30,7 +34,7 @@ export async function GET(
   const since = request.nextUrl.searchParams.get("since");
   const sinceDate = since ? new Date(since) : undefined;
 
-  const messages = await db.message.findMany({
+  const rawMessages = await db.message.findMany({
     where: {
       conversationId: id,
       deletedAt: null,
@@ -45,6 +49,13 @@ export async function GET(
     take: 100,
   });
 
+  const blockedUserIds = await getBlockedUserIdsForViewer(session.user.id);
+  const messages = filterMessagesVisibleToViewer(
+    rawMessages,
+    session.user.id,
+    blockedUserIds
+  );
+
   // Update lastReadAt
   await db.conversationMember.update({
     where: {
@@ -56,13 +67,17 @@ export async function GET(
     data: { lastReadAt: new Date() },
   });
 
-  // Mark messages from other user as read
+  // Mark messages from the other user as read only when those messages are visible to this viewer
   if (messages.length > 0) {
+    const blockedArr = [...blockedUserIds];
     await db.message.updateMany({
       where: {
         conversationId: id,
-        senderId: { not: session.user.id },
         readAt: null,
+        AND: [
+          { senderId: { not: session.user.id } },
+          ...(blockedArr.length > 0 ? [{ senderId: { notIn: blockedArr } }] : []),
+        ],
       },
       data: { readAt: new Date() },
     });

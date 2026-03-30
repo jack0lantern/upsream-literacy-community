@@ -1,11 +1,10 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
+import { PublicProfileActions } from "@/components/public-profile-actions";
 
 const ROLE_LABELS: Record<string, string> = {
   literacy_director: "Literacy Director / CAO",
@@ -51,6 +50,7 @@ export default async function PublicProfilePage({
         userId: session.user.id,
         conversation: {
           members: { some: { userId: id } },
+          status: { in: ["active", "pending", "flagged"] },
         },
       },
       select: { conversationId: true },
@@ -73,6 +73,19 @@ export default async function PublicProfilePage({
 
   const isOwnProfile = session?.user?.id === id;
 
+  let hasBlockedThem = false;
+  if (session?.user?.id && !isOwnProfile) {
+    const block = await db.userBlock.findUnique({
+      where: {
+        blockerId_blockedId: {
+          blockerId: session.user.id,
+          blockedId: id,
+        },
+      },
+    });
+    hasBlockedThem = !!block;
+  }
+
   return (
     <div className="max-w-2xl mx-auto space-y-6">
       <Card>
@@ -94,17 +107,11 @@ export default async function PublicProfilePage({
               </p>
             </div>
             {!isOwnProfile && (
-              <div>
-                {existingConversationId ? (
-                  <Link href={`/messages/${existingConversationId}`}>
-                    <Button>View Conversation</Button>
-                  </Link>
-                ) : (
-                  <Link href={`/messages?new=${id}`}>
-                    <Button>Send Message</Button>
-                  </Link>
-                )}
-              </div>
+              <PublicProfileActions
+                profileUserId={id}
+                existingConversationId={existingConversationId}
+                initiallyBlocked={hasBlockedThem}
+              />
             )}
           </div>
         </CardHeader>

@@ -84,6 +84,7 @@ export async function GET(request: NextRequest) {
     id: { not: currentUser.id },
     status: "active",
     onboarded: true,
+    isAdmin: false,
   };
 
   if (filterRole) {

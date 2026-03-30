@@ -30,6 +30,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { use } from "react";
+import { toast } from "sonner";
+import { BellOff } from "lucide-react";
 
 interface Message {
   id: string;
@@ -194,13 +196,29 @@ export default function ConversationPage({
 
   async function handleReportMessage() {
     if (!reportingMessageId || !reportMessageReason.trim()) return;
-    await fetch("/api/reports", {
+    const res = await fetch("/api/reports", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ messageId: reportingMessageId, reason: reportMessageReason }),
     });
-    setReportingMessageId(null);
-    setReportMessageReason("");
+    if (res.ok) {
+      setReportingMessageId(null);
+      setReportMessageReason("");
+      toast.success("Report submitted", {
+        description: "Thanks — our team will review it within 24 hours.",
+      });
+      return;
+    }
+    let message = "Could not submit your report. Please try again.";
+    try {
+      const data = (await res.json()) as { error?: string };
+      if (typeof data.error === "string" && data.error.trim()) {
+        message = data.error;
+      }
+    } catch {
+      /* use default */
+    }
+    toast.error(message);
   }
 
   function formatTime(dateStr: string): string {
@@ -264,10 +282,19 @@ export default function ConversationPage({
           {otherUser && (
             <Link
               href={`/profile/${otherUser.id}`}
-              className="flex items-center gap-2 hover:underline"
+              className="flex min-w-0 items-center gap-2 hover:underline"
             >
               <UserAvatar name={otherUser.name} size="sm" />
-              <span className="font-medium">{otherUser.name}</span>
+              <span className="font-medium truncate">{otherUser.name}</span>
+              {conversationInfo?.muted && (
+                <span
+                  className="inline-flex shrink-0 text-muted-foreground no-underline"
+                  title="Muted — you won’t get notifications for new messages"
+                >
+                  <BellOff className="size-4" aria-hidden />
+                  <span className="sr-only">Muted</span>
+                </span>
+              )}
             </Link>
           )}
         </div>

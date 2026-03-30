@@ -118,6 +118,35 @@ describe("Matching Engine", () => {
     expect(names).not.toContain("Suspended User");
   });
 
+  it("excludes admin users from match results", async () => {
+    const me = await seedOnboardedUser({
+      districtOverrides: { urbanicity: "suburban", sizeBucket: "medium" },
+      problemIds: ["ps_1", "ps_2"],
+    });
+
+    await seedOnboardedUser({
+      name: "Admin Peer",
+      isAdmin: true,
+      districtOverrides: { urbanicity: "suburban", sizeBucket: "medium" },
+      problemIds: ["ps_1", "ps_2"],
+    });
+
+    await seedOnboardedUser({
+      name: "Regular Peer",
+      districtOverrides: { urbanicity: "suburban", sizeBucket: "medium" },
+      problemIds: ["ps_1", "ps_2"],
+    });
+
+    setSession(me.id);
+
+    const res = await matchesHandler(createRequest("/api/matches"));
+    const data = await parseResponse(res);
+
+    const names = data.matches.map((m: { user: { name: string } }) => m.user.name);
+    expect(names).not.toContain("Admin Peer");
+    expect(names).toContain("Regular Peer");
+  });
+
   it("filters by charter LEA status", async () => {
     const me = await seedOnboardedUser({
       districtOverrides: { state: "CO", urbanicity: "suburban", sizeBucket: "medium" },

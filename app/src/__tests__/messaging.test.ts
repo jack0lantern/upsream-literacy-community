@@ -25,6 +25,7 @@ import {
   seedConversation,
   seedMessage,
   seedKeyword,
+  seedBlock,
 } from "./helpers";
 
 const mockAuth = vi.fn();
@@ -174,6 +175,45 @@ describe("Messaging System", () => {
       expect(stores.messages.size).toBe(1);
     });
 
+    it("returns 201 when recipient blocked sender (ghost send; message stored)", async () => {
+      const userA = await seedOnboardedUser();
+      const userB = await seedOnboardedUser();
+      const { conversationId } = seedConversation(userA.id, userB.id);
+      seedBlock(userB.id, userA.id);
+      setSession(userA.id);
+
+      const req = createRequest("/api/messages", {
+        method: "POST",
+        body: { conversationId, body: "Ghost message" },
+      });
+
+      const res = await messageSendHandler(req);
+      const data = await parseResponse(res);
+
+      expect(res.status).toBe(201);
+      expect(data.body).toBe("Ghost message");
+      expect(stores.messages.size).toBe(1);
+
+      const events = [...stores.analyticsEvents.values()];
+      expect(events.some((e) => e.eventType === "message_sent")).toBe(false);
+    });
+
+    it("returns 403 when sender blocked recipient", async () => {
+      const userA = await seedOnboardedUser();
+      const userB = await seedOnboardedUser();
+      const { conversationId } = seedConversation(userA.id, userB.id);
+      seedBlock(userA.id, userB.id);
+      setSession(userA.id);
+
+      const req = createRequest("/api/messages", {
+        method: "POST",
+        body: { conversationId, body: "Hello" },
+      });
+
+      const res = await messageSendHandler(req);
+      expect(res.status).toBe(403);
+    });
+
     it("blocks suspended user from sending", async () => {
       const userA = await seedOnboardedUser({ status: "suspended" });
       const userB = await seedOnboardedUser();
@@ -317,6 +357,39 @@ describe("Messaging System", () => {
 
       // Should only return messages after "since"
       expect(data.length).toBeLessThanOrEqual(1);
+    });
+
+    it("hides messages from users the viewer has blocked", async () => {
+      const userA = await seedOnboardedUser();
+      const userB = await seedOnboardedUser();
+      const { conversationId } = seedConversation(userA.id, userB.id);
+      seedMessage(conversationId, userA.id, "From A");
+      seedBlock(userB.id, userA.id);
+      setSession(userB.id);
+
+      const req = createRequest(`/api/conversations/${conversationId}/messages`);
+      const res = await messagesGetHandler(req, { params: makeParams(conversationId) });
+      const data = await parseResponse(res);
+
+      expect(res.status).toBe(200);
+      expect(data).toHaveLength(0);
+    });
+
+    it("still shows the blocked user's own sent messages when they fetch the thread", async () => {
+      const userA = await seedOnboardedUser();
+      const userB = await seedOnboardedUser();
+      const { conversationId } = seedConversation(userA.id, userB.id);
+      seedMessage(conversationId, userA.id, "From A");
+      seedBlock(userB.id, userA.id);
+      setSession(userA.id);
+
+      const req = createRequest(`/api/conversations/${conversationId}/messages`);
+      const res = await messagesGetHandler(req, { params: makeParams(conversationId) });
+      const data = await parseResponse(res);
+
+      expect(res.status).toBe(200);
+      expect(data).toHaveLength(1);
+      expect(data[0].body).toBe("From A");
     });
 
     it("blocks non-member from reading conversation", async () => {

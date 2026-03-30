@@ -235,14 +235,14 @@ export default function DashboardPage() {
     <div className="space-y-5">
       {/* Sort */}
       <div>
-        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+        <label className="text-sm font-medium text-muted-foreground mb-2 block">
           Sort by
         </label>
         <Select value={sort} onValueChange={(v) => v && setSort(v)}>
-          <SelectTrigger>
+          <SelectTrigger className="text-xs">
             <SelectValue>{(v: string) => SORT_LABELS[v] ?? v}</SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="[&_[data-slot=select-item]]:text-xs">
             <SelectItem value="score">Match score</SelectItem>
             <SelectItem value="recent">Recently active</SelectItem>
           </SelectContent>
@@ -254,7 +254,7 @@ export default function DashboardPage() {
       {/* Challenges */}
       <div>
         <div className="flex items-center justify-between mb-2.5">
-          <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <label className="text-sm font-medium text-muted-foreground">
             Challenges
           </label>
           {filterChallenges.size > 0 && (
@@ -265,7 +265,7 @@ export default function DashboardPage() {
         </div>
         {myProblemIds.size > 0 && (
           <div className="space-y-2">
-            <p className="text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wide">
+            <p className="text-sm font-medium text-muted-foreground/70">
               My challenges
             </p>
             <div className="flex flex-wrap gap-1.5">
@@ -278,7 +278,7 @@ export default function DashboardPage() {
             <button
               type="button"
               onClick={() => setShowMoreChallenges((v) => !v)}
-              className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground/70 uppercase tracking-wide hover:text-foreground transition-colors mb-2"
+              className="flex items-center gap-1.5 text-sm font-medium text-muted-foreground/70 hover:text-foreground transition-colors mb-2"
             >
               <ChevronDown
                 className={`size-3 transition-transform duration-200 ${showMoreChallenges ? "rotate-180" : ""}`}
@@ -298,16 +298,16 @@ export default function DashboardPage() {
 
       {/* People */}
       <div>
-        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground mb-2 block">
+        <label className="text-sm font-medium text-muted-foreground mb-2 block">
           Role
         </label>
         <Select value={filterRole} onValueChange={(v) => setFilterRole(v ?? "")}>
-          <SelectTrigger>
+          <SelectTrigger className="text-xs">
             <SelectValue placeholder="All roles">
               {(v: string) => ROLE_LABELS[v] ?? "All roles"}
             </SelectValue>
           </SelectTrigger>
-          <SelectContent>
+          <SelectContent className="[&_[data-slot=select-item]]:text-xs">
             <SelectItem value="">All roles</SelectItem>
             {Object.entries(ROLE_LABELS).map(([value, label]) => (
               <SelectItem key={value} value={value}>
@@ -322,11 +322,11 @@ export default function DashboardPage() {
 
       {/* District */}
       <div className="space-y-3">
-        <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground block">
+        <label className="text-sm font-medium text-muted-foreground block">
           District
         </label>
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">State</label>
+          <label className="text-sm text-muted-foreground mb-1 block">State</label>
           <Select
             value={filterStateScope || filterState}
             onValueChange={(v) => {
@@ -339,12 +339,12 @@ export default function DashboardPage() {
               }
             }}
           >
-            <SelectTrigger>
+            <SelectTrigger className="text-xs">
               <SelectValue placeholder="All states">
                 {(v: string) => STATE_SCOPE_LABELS[v] ?? (v || "All states")}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="[&_[data-slot=select-item]]:text-xs">
               <SelectItem value="">All states</SelectItem>
               <SelectItem value="same">Same state as me</SelectItem>
               <SelectItem value="different">Different state</SelectItem>
@@ -357,14 +357,14 @@ export default function DashboardPage() {
           </Select>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+          <label className="text-sm text-muted-foreground mb-1 block">Type</label>
           <Select value={filterUrbanicity} onValueChange={(v) => setFilterUrbanicity(v ?? "")}>
-            <SelectTrigger>
+            <SelectTrigger className="text-xs">
               <SelectValue placeholder="All types">
                 {(v: string) => URBANICITY_LABELS[v] ?? "All types"}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="[&_[data-slot=select-item]]:text-xs">
               <SelectItem value="">All types</SelectItem>
               <SelectItem value="urban">Urban</SelectItem>
               <SelectItem value="suburban">Suburban</SelectItem>
@@ -374,14 +374,14 @@ export default function DashboardPage() {
           </Select>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Size</label>
+          <label className="text-sm text-muted-foreground mb-1 block">Size</label>
           <Select value={filterSizeBucket} onValueChange={(v) => setFilterSizeBucket(v ?? "")}>
-            <SelectTrigger>
+            <SelectTrigger className="text-xs">
               <SelectValue placeholder="All sizes">
                 {(v: string) => SIZE_LABELS[v] ?? "All sizes"}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="[&_[data-slot=select-item]]:text-xs">
               <SelectItem value="">All sizes</SelectItem>
               <SelectItem value="small">Small (&lt;3K)</SelectItem>
               <SelectItem value="medium">Medium (3K-15K)</SelectItem>
@@ -391,14 +391,14 @@ export default function DashboardPage() {
           </Select>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground mb-1 block">Charter</label>
+          <label className="text-sm text-muted-foreground mb-1 block">Charter</label>
           <Select value={filterCharter} onValueChange={(v) => setFilterCharter(v ?? "")}>
-            <SelectTrigger>
+            <SelectTrigger className="text-xs">
               <SelectValue placeholder="All">
                 {(v: string) => CHARTER_LABELS[v] ?? "All"}
               </SelectValue>
             </SelectTrigger>
-            <SelectContent>
+            <SelectContent className="[&_[data-slot=select-item]]:text-xs">
               <SelectItem value="">All</SelectItem>
               <SelectItem value="charter">Charter only</SelectItem>
               <SelectItem value="traditional">Traditional only</SelectItem>

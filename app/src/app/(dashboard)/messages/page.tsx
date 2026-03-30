@@ -1,12 +1,15 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/user-avatar";
 import { EmptyState } from "@/components/empty-state";
 import { ConversationListSkeleton } from "@/components/loading-skeleton";
+import { BellOff } from "lucide-react";
 
 interface ConversationPreview {
   id: string;
@@ -29,8 +32,103 @@ export default function MessagesPage() {
   );
 }
 
+interface NewRecipient {
+  id: string;
+  name: string;
+}
+
+function NewConversationPanel({ recipientId }: { recipientId: string }) {
+  const router = useRouter();
+  const [recipient, setRecipient] = useState<NewRecipient | null>(null);
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    fetch(`/api/users/${recipientId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (data) setRecipient({ id: data.id, name: data.name });
+        else setError("User not found.");
+      })
+      .catch(() => setError("Could not load user."));
+  }, [recipientId]);
+
+  async function handleSend() {
+    if (!body.trim() || sending) return;
+    setSending(true);
+    setError("");
+
+    const res = await fetch("/api/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ recipientId, body }),
+    });
+
+    const data = await res.json();
+    if (!res.ok) {
+      setError(data.error ?? "Could not start conversation.");
+      setSending(false);
+      return;
+    }
+
+    router.push(`/messages/${data.conversationId}`);
+  }
+
+  if (error && !recipient) {
+    return (
+      <div className="max-w-2xl mx-auto">
+        <h1 className="text-2xl font-bold mb-6">New Message</h1>
+        <div className="text-sm text-destructive">{error}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold mb-6">New Message</h1>
+      <div className="border rounded-lg p-6 space-y-4">
+        {recipient ? (
+          <>
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-muted-foreground">To:</span>
+              <div className="flex items-center gap-2">
+                <UserAvatar name={recipient.name} size="sm" />
+                <span className="font-medium">{recipient.name}</span>
+              </div>
+            </div>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Write your first message..."
+              rows={4}
+              className="resize-none"
+              autoFocus
+            />
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <div className="flex justify-end">
+              <Button onClick={handleSend} disabled={!body.trim() || sending}>
+                {sending ? "Sending..." : "Send Message"}
+              </Button>
+            </div>
+          </>
+        ) : (
+          <div className="text-sm text-muted-foreground">Loading...</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MessagesContent() {
-  useSearchParams(); // keep searchParams in scope for future use
+  const searchParams = useSearchParams();
+  const newRecipientId = searchParams.get("new");
   const [conversations, setConversations] = useState<ConversationPreview[]>([]);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<"messages" | "requests">("messages");
@@ -54,6 +152,10 @@ function MessagesContent() {
         setRequestsLoading(false);
       });
   }, []);
+
+  if (newRecipientId) {
+    return <NewConversationPanel recipientId={newRecipientId} />;
+  }
 
   function formatTime(dateStr: string): string {
     const date = new Date(dateStr);
@@ -148,8 +250,19 @@ function MessagesContent() {
                 <UserAvatar name={conv.otherUser?.name ?? "?"} />
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between gap-2">
-                    <span className={cn("text-sm truncate", conv.hasUnread ? "font-semibold" : "font-medium")}>
-                      {conv.otherUser?.name ?? "Unknown"}
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className={cn("text-sm truncate", conv.hasUnread ? "font-semibold" : "font-medium")}>
+                        {conv.otherUser?.name ?? "Unknown"}
+                      </span>
+                      {conv.muted && (
+                        <span
+                          className="inline-flex shrink-0 text-muted-foreground"
+                          title="Muted — you won’t get notifications for new messages"
+                        >
+                          <BellOff className="size-3.5" aria-hidden />
+                          <span className="sr-only">Muted</span>
+                        </span>
+                      )}
                     </span>
                     {conv.lastMessage && (
                       <span className="text-xs text-muted-foreground shrink-0">

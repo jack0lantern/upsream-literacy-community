@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { trackEvent } from "@/lib/analytics";
 import { sanitizeMessageBody } from "@/lib/sanitize";
+import {
+  getBlockedUserIdsForViewer,
+  isMessageVisibleToViewer,
+} from "@/lib/message-visibility";
 
 // List conversations for current user
 export async function GET(request: NextRequest) {
@@ -28,7 +32,7 @@ export async function GET(request: NextRequest) {
           },
           messages: {
             orderBy: { sentAt: "desc" },
-            take: 1,
+            take: 40,
             where: { deletedAt: null },
             select: {
               id: true,
@@ -53,6 +57,8 @@ export async function GET(request: NextRequest) {
     ).map((b) => b.blockerId)
   );
 
+  const blockedUserIds = await getBlockedUserIdsForViewer(session.user.id);
+
   const conversations = memberships
     .filter((m) => {
       const status = m.conversation.status;
@@ -75,7 +81,10 @@ export async function GET(request: NextRequest) {
       const otherMember = m.conversation.members.find(
         (cm) => cm.userId !== session.user.id
       );
-      const lastMessage = m.conversation.messages[0] ?? null;
+      const lastMessage =
+        m.conversation.messages.find((msg) =>
+          isMessageVisibleToViewer(msg, session.user.id, blockedUserIds)
+        ) ?? null;
       const unreadCutoff = m.lastReadAt ?? new Date(0);
 
       return {
@@ -172,6 +181,25 @@ export async function POST(request: NextRequest) {
         { error: "Cannot send another request to this user" },
         { status: 403 }
       );
+    }
+    // Reopen closed conversations as a new pending request with the new message
+    if (status === "closed") {
+      const sanitized = sanitizeMessageBody(body.trim());
+      await db.$transaction(async (tx) => {
+        await tx.conversation.update({
+          where: { id: existingId },
+          data: { status: "pending" },
+        });
+        if (sanitized) {
+          await tx.message.create({
+            data: {
+              conversationId: existingId,
+              senderId: session.user.id,
+              body: sanitized,
+            },
+          });
+        }
+      });
     }
     return NextResponse.json({ conversationId: existingId }, { status: 200 });
   }

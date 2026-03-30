@@ -74,9 +74,30 @@ export async function DELETE(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  // Idempotent: no-op if block doesn't exist
-  await db.userBlock.deleteMany({
-    where: { blockerId: session.user.id, blockedId: targetId },
+  await db.$transaction(async (tx) => {
+    // Remove the block
+    await tx.userBlock.deleteMany({
+      where: { blockerId: session.user.id, blockedId: targetId },
+    });
+
+    // Reopen any conversation that was closed due to the block
+    const membership = await tx.conversationMember.findFirst({
+      where: {
+        userId: session.user.id,
+        conversation: {
+          status: "closed",
+          members: { some: { userId: targetId } },
+        },
+      },
+      include: { conversation: { select: { id: true } } },
+    });
+
+    if (membership?.conversation) {
+      await tx.conversation.update({
+        where: { id: membership.conversation.id },
+        data: { status: "active" },
+      });
+    }
   });
 
   return NextResponse.json({ blocked: false });

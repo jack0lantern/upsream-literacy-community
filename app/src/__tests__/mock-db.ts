@@ -194,6 +194,10 @@ function matchesWhere<T>(item: T, where: Record<string, unknown>): boolean {
         if (!(op.in as unknown[]).includes(itemVal)) return false;
         continue;
       }
+      if ("notIn" in op) {
+        if ((op.notIn as unknown[]).includes(itemVal)) return false;
+        continue;
+      }
       if ("not" in op) {
         if (itemVal === op.not) return false;
         continue;
@@ -509,22 +513,21 @@ baseConversationMember.findFirst = vi.fn(async (args?: { where?: Record<string, 
     const first = stores.conversationMembers.values().next().value;
     return first ? (args?.include ? resolveConversationMemberRelations(first) : first) : null;
   }
-  // Handle nested relation filter: { userId: x, conversation: { members: { some: { userId: y } } } }
+  const memberWhere = { ...args.where };
+  const convFilter = memberWhere.conversation as Record<string, unknown> | undefined;
+  delete (memberWhere as { conversation?: unknown }).conversation;
+
   for (const item of stores.conversationMembers.values()) {
+    if (!matchesWhere(item, memberWhere)) continue;
     let match = true;
-    if (args.where.userId && item.userId !== args.where.userId) match = false;
-    if (args.where.conversationId && item.conversationId !== args.where.conversationId) match = false;
-    if (match && args.where.conversation) {
-      const convFilter = args.where.conversation as Record<string, unknown>;
-      if (convFilter.members) {
-        const membersFilter = convFilter.members as { some?: { userId?: string } };
-        if (membersFilter.some?.userId) {
-          const otherUserId = membersFilter.some.userId;
-          const hasOther = [...stores.conversationMembers.values()].some(
-            (cm) => cm.conversationId === item.conversationId && cm.userId === otherUserId
-          );
-          if (!hasOther) match = false;
-        }
+    if (convFilter?.members) {
+      const membersFilter = convFilter.members as { some?: { userId?: string } };
+      if (membersFilter.some?.userId) {
+        const otherUserId = membersFilter.some.userId;
+        const hasOther = [...stores.conversationMembers.values()].some(
+          (cm) => cm.conversationId === item.conversationId && cm.userId === otherUserId
+        );
+        if (!hasOther) match = false;
       }
     }
     if (match) return args.include ? resolveConversationMemberRelations(item) : item;
@@ -698,6 +701,35 @@ baseUserBlock.findUnique = vi.fn(async (args: { where: Record<string, unknown> }
     if (matchesWhere(item, w)) return item;
   }
   return null;
+});
+
+baseUserBlock.findMany = vi.fn(async (args?: { where?: Record<string, unknown>; orderBy?: Record<string, string>; include?: unknown }) => {
+  let items = [...stores.userBlocks.values()];
+  if (args?.where) items = items.filter((i) => matchesWhere(i, args.where!));
+  if (args?.orderBy) {
+    const [field, dir] = Object.entries(args.orderBy)[0] ?? [];
+    if (field) {
+      items.sort((a, b) => {
+        const av = (a as Record<string, unknown>)[field];
+        const bv = (b as Record<string, unknown>)[field];
+        if (av instanceof Date && bv instanceof Date) {
+          const cmp = av.getTime() - bv.getTime();
+          return dir === "desc" ? -cmp : cmp;
+        }
+        return 0;
+      });
+    }
+  }
+  if (!args?.include) return items;
+  return items.map((block) => {
+    const blocked = stores.users.get(block.blockedId);
+    return {
+      ...block,
+      blocked: blocked
+        ? { id: blocked.id, name: blocked.name, status: blocked.status }
+        : null,
+    };
+  });
 });
 
 // Mock the db module

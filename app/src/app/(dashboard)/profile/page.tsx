@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -79,6 +80,12 @@ interface ProblemStatement {
   category: string;
 }
 
+interface BlockedUserEntry {
+  id: string;
+  name: string;
+  status: string;
+}
+
 export default function ProfilePage() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [allProblems, setAllProblems] = useState<ProblemStatement[]>([]);
@@ -99,6 +106,9 @@ export default function ProfilePage() {
     totalEnrollment: "",
   });
 
+  const [blockedUsers, setBlockedUsers] = useState<BlockedUserEntry[]>([]);
+  const [unblockingId, setUnblockingId] = useState<string | null>(null);
+
   const searchDistricts = useCallback(async (q: string, state: string) => {
     if (q.length < 2) {
       setDistrictResults([]);
@@ -115,14 +125,32 @@ export default function ProfilePage() {
     Promise.all([
       fetch("/api/profile").then((r) => r.json()),
       fetch("/api/problems").then((r) => r.json()),
-    ]).then(([profileData, problemsData]) => {
+      fetch("/api/users/blocked").then(async (r) => {
+        if (!r.ok) return { users: [] as BlockedUserEntry[] };
+        return r.json() as Promise<{ users?: BlockedUserEntry[] }>;
+      }),
+    ]).then(([profileData, problemsData, blockedData]) => {
       setProfile(profileData);
       setAllProblems(problemsData);
       setBio(profileData.bio ?? "");
       setSelectedProblemIds(profileData.problems?.map((p: { id: string }) => p.id) ?? []);
+      const users = blockedData.users;
+      setBlockedUsers(Array.isArray(users) ? users : []);
       setLoading(false);
     });
   }, []);
+
+  async function handleUnblockUser(userId: string) {
+    setUnblockingId(userId);
+    try {
+      const res = await fetch(`/api/users/${userId}/block`, { method: "DELETE" });
+      if (res.ok) {
+        setBlockedUsers((prev) => prev.filter((u) => u.id !== userId));
+      }
+    } finally {
+      setUnblockingId(null);
+    }
+  }
 
   useEffect(() => {
     if (!editing) return;
@@ -227,6 +255,9 @@ export default function ProfilePage() {
     setSaving(false);
   }
 
+  if (loading) return <ProfileSkeleton />;
+  if (!profile) return null;
+
   const districtRequired = profile.district != null;
   const districtOk = !districtRequired || selectedDistrict != null;
 
@@ -234,9 +265,6 @@ export default function ProfilePage() {
     await fetch("/api/profile", { method: "DELETE" });
     signOut({ callbackUrl: "/login" });
   }
-
-  if (loading) return <ProfileSkeleton />;
-  if (!profile) return null;
 
   const problemsByCategory = allProblems.reduce(
     (acc, p) => {
@@ -548,6 +576,58 @@ export default function ProfilePage() {
                 </div>
               </div>
             </div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg">Blocked people</CardTitle>
+          <CardDescription>
+            You won&apos;t appear in each other&apos;s messaging until you
+            unblock.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {blockedUsers.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              You&apos;re not blocking anyone.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {blockedUsers.map((u) => (
+                <li
+                  key={u.id}
+                  className="flex flex-wrap items-center justify-between gap-2"
+                >
+                  <div className="flex min-w-0 items-center gap-2">
+                    <UserAvatar name={u.name} size="sm" />
+                    <div className="min-w-0">
+                      <Link
+                        href={`/profile/${u.id}`}
+                        className="text-sm font-medium hover:underline truncate block max-w-[12rem] sm:max-w-xs"
+                      >
+                        {u.name}
+                      </Link>
+                      {u.status !== "active" && (
+                        <p className="text-xs text-muted-foreground">
+                          Account unavailable
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => void handleUnblockUser(u.id)}
+                    disabled={unblockingId === u.id}
+                  >
+                    {unblockingId === u.id ? "Unblocking…" : "Unblock"}
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
         </CardContent>
       </Card>

@@ -4,6 +4,7 @@
  * - POST /api/users/[id]/block is idempotent
  * - DELETE /api/users/[id]/block removes block
  * - GET /api/users/[id]/block returns blocked status
+ * - GET /api/users/blocked lists users blocked by the current user
  */
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { resetStores, stores } from "./mock-db";
@@ -29,6 +30,7 @@ import {
   DELETE as unblockUserHandler,
   GET as checkBlockHandler,
 } from "@/app/api/users/[id]/block/route";
+import { GET as listBlockedHandler } from "@/app/api/users/blocked/route";
 
 function setSession(userId: string) {
   mockAuth.mockResolvedValue({ user: { id: userId, name: "Test", email: "t@t.com" } });
@@ -159,6 +161,37 @@ describe("User Blocking", () => {
       const data = await parseResponse(res);
 
       expect(data.blocked).toBe(false);
+    });
+  });
+
+  describe("GET /api/users/blocked", () => {
+    it("returns 401 when unauthenticated", async () => {
+      mockAuth.mockResolvedValue(null);
+      const res = await listBlockedHandler();
+      expect(res.status).toBe(401);
+    });
+
+    it("returns empty users when none blocked", async () => {
+      const userA = await seedOnboardedUser();
+      setSession(userA.id);
+      const res = await listBlockedHandler();
+      const data = await parseResponse(res);
+      expect(res.status).toBe(200);
+      expect(data.users).toEqual([]);
+    });
+
+    it("returns blocked users with id, name, and status", async () => {
+      const userA = await seedOnboardedUser();
+      const userB = await seedOnboardedUser();
+      seedBlock(userA.id, userB.id);
+      setSession(userA.id);
+      const res = await listBlockedHandler();
+      const data = await parseResponse(res);
+      expect(res.status).toBe(200);
+      expect(data.users).toHaveLength(1);
+      expect(data.users[0].id).toBe(userB.id);
+      expect(data.users[0].name).toBe(userB.name);
+      expect(data.users[0].status).toBe("active");
     });
   });
 });

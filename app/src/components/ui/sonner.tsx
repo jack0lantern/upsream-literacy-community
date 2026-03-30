@@ -5,11 +5,16 @@ import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { theme = "system" } = useTheme()
+  const { resolvedTheme } = useTheme()
+  // Default to light when ThemeProvider is absent (resolvedTheme undefined). Using "system"
+  // here without a provider made Sonner pick dark from OS prefs while CSS variables stayed
+  // light — toast descriptions used near-white gray on a white card.
+  const sonnerTheme: ToasterProps["theme"] =
+    resolvedTheme === "dark" ? "dark" : "light"
 
   return (
     <Sonner
-      theme={theme as ToasterProps["theme"]}
+      theme={sonnerTheme}
       className="toaster group"
       icons={{
         success: (

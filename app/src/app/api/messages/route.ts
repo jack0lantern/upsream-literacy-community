@@ -95,22 +95,33 @@ export async function POST(request: NextRequest) {
     include: { user: { select: { id: true, email: true, status: true } } },
   });
 
-  // Check if either party has blocked the other
+  // Block: if I blocked them (and they did not block me), I cannot send.
+  // If they blocked me, send still succeeds for the sender but delivery is suppressed (no email; other user does not see the message).
+  let recipientBlockedSender = false;
   if (otherMember?.user) {
-    const block = await db.userBlock.findFirst({
+    const blockedMe = await db.userBlock.findUnique({
       where: {
-        OR: [
-          { blockerId: session.user.id, blockedId: otherMember.user.id },
-          { blockerId: otherMember.user.id, blockedId: session.user.id },
-        ],
+        blockerId_blockedId: {
+          blockerId: otherMember.user.id,
+          blockedId: session.user.id,
+        },
       },
     });
-    if (block) {
+    const iBlockedThem = await db.userBlock.findUnique({
+      where: {
+        blockerId_blockedId: {
+          blockerId: session.user.id,
+          blockedId: otherMember.user.id,
+        },
+      },
+    });
+    if (iBlockedThem && !blockedMe) {
       return NextResponse.json(
         { error: "Cannot send messages to this user." },
         { status: 403 }
       );
     }
+    recipientBlockedSender = !!blockedMe;
   }
 
   // Sanitize message body
@@ -172,8 +183,13 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  // Email notification with debouncing
-  if (otherMember?.user && otherMember.user.status === "active" && !otherMember.muted) {
+  // Email notification with debouncing (skip when recipient has blocked sender)
+  if (
+    otherMember?.user &&
+    otherMember.user.status === "active" &&
+    !otherMember.muted &&
+    !recipientBlockedSender
+  ) {
     const lastNotified = emailDebounceMap.get(otherMember.user.id) ?? 0;
     const now = Date.now();
 
@@ -197,7 +213,9 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  await trackEvent("message_sent", session.user.id, { conversationId });
+  if (!recipientBlockedSender) {
+    await trackEvent("message_sent", session.user.id, { conversationId });
+  }
 
   return NextResponse.json(message, { status: 201 });
 }
