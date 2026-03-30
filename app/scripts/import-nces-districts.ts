@@ -170,7 +170,6 @@ async function main() {
   console.log(`Parsed ${rows.length} rows from CSV.\n`);
 
   let upserted = 0;
-  let skipped = 0;
 
   for (let batchStart = 0; batchStart < rows.length; batchStart += BATCH_SIZE) {
     const batch = rows.slice(batchStart, batchStart + BATCH_SIZE);
@@ -196,14 +195,13 @@ async function main() {
           frlPct,
           ellPct,
           isCharterAgency,
-          isManual: false as const,
         };
 
         return prisma.district.upsert({
           where: { ncesId: row.leaid },
-          // On conflict: update all derived fields but never set isManual = true
+          // On conflict: update derived fields but preserve isManual
           update: data,
-          create: { ncesId: row.leaid, ...data },
+          create: { ncesId: row.leaid, ...data, isManual: false },
         });
       }),
     );
@@ -215,9 +213,7 @@ async function main() {
     }
   }
 
-  console.log(`\nImport complete.`);
-  console.log(`  Upserted : ${upserted}`);
-  console.log(`  Skipped  : ${skipped}`);
+  console.log(`\nImport complete: ${upserted} districts upserted.`);
 }
 
 main()

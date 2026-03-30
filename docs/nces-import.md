@@ -60,7 +60,7 @@ LEAID,LEA_NAME,STATE_ABBR,LOCALE,TOTAL,FREE_REDUCED_LUNCH_ELIGIBLE,ENGLISH_LEARN
 
 1. Save the prepared CSV to the app directory:
    ```bash
-   cp nces_2223_unified.csv app/data/nces_2223_unified.csv
+   cp nces_2223_unified.csv app/data/nces-districts.csv
    ```
 
 2. Run the import script:

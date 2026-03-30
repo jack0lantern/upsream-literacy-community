@@ -392,6 +392,13 @@ async function main() {
       if (found) districtsByNces.set(ncesId, found.id);
     }
 
+    if (districtsByNces.size === 0) {
+      console.log(
+        "   ⚠ No districts found. Run 'make import-nces' first, or set SEED_SAMPLE_DISTRICTS=1.\n" +
+          "     Seed users will be created without district assignments.\n",
+      );
+    }
+
     // 16 seed users — spread across districts, roles, urbanicities, and sizes
     const SEED_USERS: {
       email: string;
