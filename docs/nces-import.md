@@ -5,11 +5,12 @@ This document describes the National Center for Education Statistics (NCES) Comm
 ## Data Source & Version
 
 - **Source:** NCES Common Core of Data (CCD)
-- **School Year:** 2022–23 (most recent complete release)
+- **School Year:** 2024–25 (Universe Files, Version 1a)
 - **Data Type:** Public Use Files (PUF)
-- **Download:** https://nces.ed.gov/pubsearch/pubsinfo.asp?pubid=2024040
+- **Download:** https://nces.ed.gov/ccd/files.asp (select Nonfiscal → 2024-2025)
+- **Note:** ELL data is not available in the 2024-25 v1a release; `ellPct` will be null until a future CCD update includes it.
 
-All district matching and scoring depends on accurate, normalized NCES LEA data. Use only the official NCES 2022–23 CCD files; do not mix school years.
+All district matching and scoring depends on accurate, normalized NCES LEA data. Use only the official NCES CCD files; do not mix school years.
 
 ## Import Workflow
 
