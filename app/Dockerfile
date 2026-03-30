@@ -11,9 +11,10 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-# Dummy URL for prisma generate (not used at runtime)
+# Dummy URL so prisma generate + next build don't fail (overridden at runtime)
 ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
-RUN pnpm prisma generate
+RUN pnpm exec prisma generate --schema=prisma/schema.prisma \
+    && ls -la node_modules/.prisma/client/ | head -5
 RUN pnpm build
 
 # --- Runner ---
@@ -31,7 +32,7 @@ COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy prisma for migrations
+# Copy prisma schema for migrations + generated client
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
