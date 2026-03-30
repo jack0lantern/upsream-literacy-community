@@ -25,9 +25,15 @@ export default async function DashboardLayout({
 
   return (
     <div className="min-h-screen flex flex-col">
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-50 focus:rounded-md focus:bg-blue-600 focus:px-4 focus:py-2 focus:text-sm focus:font-medium focus:text-white"
+      >
+        Skip to main content
+      </a>
       {!user.emailVerified && <EmailVerificationBanner />}
       <DashboardNav user={session.user} />
-      <main className="flex-1">
+      <main id="main-content" className="flex-1">
         <div className="container mx-auto px-4 py-6 max-w-7xl">{children}</div>
       </main>
     </div>

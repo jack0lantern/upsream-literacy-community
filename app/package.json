@@ -11,7 +11,9 @@
     "seed": "npx tsx scripts/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "npx playwright test"
+    "test:e2e": "npx playwright test",
+    "create-admin": "npx tsx scripts/create-admin.ts",
+    "smoke-test": "npx tsx scripts/smoke-test.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",

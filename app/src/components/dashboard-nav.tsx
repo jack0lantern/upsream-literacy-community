@@ -46,13 +46,13 @@ export function DashboardNav({ user }: { user: NavUser }) {
           </Link>
 
           {/* Desktop nav */}
-          <nav className="hidden md:flex items-center gap-1" aria-label="Main">
+          <nav className="hidden md:flex items-center gap-1" aria-label="Main navigation">
             {NAV_ITEMS.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
                 className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  "px-3 py-2 text-sm rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   pathname.startsWith(item.href)
                     ? "bg-accent text-accent-foreground font-medium"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -65,7 +65,7 @@ export function DashboardNav({ user }: { user: NavUser }) {
               <Link
                 href="/admin"
                 className={cn(
-                  "px-3 py-2 text-sm rounded-md transition-colors",
+                  "px-3 py-2 text-sm rounded-md transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   pathname.startsWith("/admin")
                     ? "bg-accent text-accent-foreground font-medium"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -124,14 +124,14 @@ export function DashboardNav({ user }: { user: NavUser }) {
             </SheetTrigger>
             <SheetContent side="right" className="w-64">
               <SheetTitle className="sr-only">Navigation</SheetTitle>
-              <nav className="flex flex-col gap-1 mt-6" aria-label="Mobile">
+              <nav className="flex flex-col gap-1 mt-6" aria-label="Mobile navigation">
                 {NAV_ITEMS.map((item) => (
                   <Link
                     key={item.href}
                     href={item.href}
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "px-3 py-2 text-sm rounded-md",
+                      "px-3 py-2 text-sm rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       pathname.startsWith(item.href)
                         ? "bg-accent font-medium"
                         : "text-muted-foreground hover:bg-accent/50"
@@ -145,7 +145,7 @@ export function DashboardNav({ user }: { user: NavUser }) {
                     href="/admin"
                     onClick={() => setMobileOpen(false)}
                     className={cn(
-                      "px-3 py-2 text-sm rounded-md",
+                      "px-3 py-2 text-sm rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       pathname.startsWith("/admin")
                         ? "bg-accent font-medium"
                         : "text-muted-foreground hover:bg-accent/50"
