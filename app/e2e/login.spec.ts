@@ -1,64 +1,67 @@
+/**
+ * PRD Flow 1 (partial): Authentication
+ * - Login with valid credentials → dashboard
+ * - Login with invalid credentials → error
+ * - Signup → auto-login → onboarding redirect
+ * - Forgot password page renders
+ */
 import { test, expect } from "@playwright/test";
+import { login, ADMIN, USERS, uniqueEmail } from "./helpers";
 
-test("logs in with seeded admin credentials and reaches dashboard", async ({
-  page,
-}) => {
-  await page.goto("/login");
+test.describe("Authentication", () => {
+  test("logs in with seeded admin credentials and reaches dashboard", async ({
+    page,
+  }) => {
+    await login(page, ADMIN.email, ADMIN.password);
+    await expect(page).toHaveURL(/\/(dashboard|onboarding)/);
+  });
 
-  // Verify the login form is visible
-  await expect(page.getByText("Welcome back")).toBeVisible();
+  test("logs in with seeded regular user", async ({ page }) => {
+    await login(page, USERS.lisa.email, USERS.lisa.password);
+    await expect(page).toHaveURL(/\/dashboard/);
+  });
 
-  // Fill in the seeded admin credentials
-  await page.getByLabel("Email").fill("admin@upstream.dev");
-  await page.getByLabel("Password").fill("admin123");
+  test("shows error for invalid credentials", async ({ page }) => {
+    await page.goto("/login");
+    await page.getByLabel("Email").fill("nobody@test.com");
+    await page.getByLabel("Password").fill("wrongpassword");
+    await page.getByRole("button", { name: "Sign in" }).click();
 
-  // Submit the form
-  await page.getByRole("button", { name: "Sign in" }).click();
+    await expect(page.getByRole("alert")).toBeVisible({ timeout: 5_000 });
+    // Should stay on login
+    await expect(page).toHaveURL(/\/login/);
+  });
 
-  // After login the app redirects to /dashboard (or /onboarding).
-  // Wait for URL to leave /login.
-  await expect(page).not.toHaveURL(/\/login/, { timeout: 15_000 });
+  test("signup creates account and redirects to onboarding", async ({
+    page,
+  }) => {
+    const email = uniqueEmail();
 
-  // Confirm we landed on an authenticated page
-  const url = page.url();
-  expect(url).toMatch(/\/(dashboard|onboarding)/);
-});
+    await page.goto("/signup");
+    await expect(page.getByText("Create your account")).toBeVisible();
 
-test("dashboard shows matches for a seeded user", async ({ page }) => {
-  // Log in as a seed user who has a district and problems
-  await page.goto("/login");
-  await page.getByLabel("Email").fill("admin@upstream.dev");
-  await page.getByLabel("Password").fill("admin123");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+    await page.getByLabel("Full name").fill("E2E Test User");
+    await page.getByLabel("Email").fill(email);
+    await page.getByLabel("Password").fill("testpassword123");
+    await page.getByRole("button", { name: "Create account" }).click();
 
-  // Wait for matches to load — the subtitle shows "{N} peers found"
-  await expect(
-    page.getByText(/\d+ peers found/)
-  ).toBeVisible({ timeout: 10_000 });
-});
+    // Should redirect to onboarding after auto-login
+    await expect(page).toHaveURL(/\/onboarding/, { timeout: 15_000 });
+  });
 
-test("seed user with different district sees matches", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill("lisa.martinez@usd435.edu");
-  await page.getByLabel("Password").fill("password123");
-  await page.getByRole("button", { name: "Sign in" }).click();
-  await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
+  test("signup page shows district search dropdown", async ({ page }) => {
+    await page.goto("/signup");
+    await expect(page.getByLabel("District")).toBeVisible();
 
-  await expect(
-    page.getByText(/\d+ peers found/)
-  ).toBeVisible({ timeout: 10_000 });
-});
+    await page.getByLabel("District").fill("Spring");
+    await expect(
+      page.getByText("Springfield SD 186").first()
+    ).toBeVisible({ timeout: 5_000 });
+  });
 
-test("signup page shows district search dropdown", async ({ page }) => {
-  await page.goto("/signup");
-
-  // Verify the district field exists
-  await expect(page.getByLabel("District")).toBeVisible();
-
-  // Type a search query and verify dropdown results appear
-  await page.getByLabel("District").fill("Spring");
-  await expect(
-    page.getByText("Springfield SD 186").first()
-  ).toBeVisible({ timeout: 5_000 });
+  test("forgot password page renders", async ({ page }) => {
+    await page.goto("/forgot-password");
+    await expect(page.getByText("Reset your password")).toBeVisible();
+    await expect(page.getByLabel("Email")).toBeVisible();
+  });
 });
