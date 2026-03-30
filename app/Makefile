@@ -1,6 +1,6 @@
 .DEFAULT_GOAL := help
 
-.PHONY: help setup run dev test test-e2e seed db-ensure db-reset db-migrate db-studio lint clean
+.PHONY: help setup run dev test test-e2e seed db-ensure db-reset db-migrate db-studio lint clean import-nces
 
 help:
 	@echo "Upstream Literacy — app"
@@ -79,6 +79,12 @@ db-studio:
 # Lint + format check
 lint:
 	pnpm lint && pnpm prettier --check .
+
+# Import NCES district CSV into Postgres
+# Usage: make import-nces           (reads data/nces-districts.csv)
+#        make import-nces CSV=path/to/file.csv
+import-nces:
+	pnpm run import:nces $(CSV)
 
 # Clean build artifacts
 clean:

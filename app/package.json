@@ -13,7 +13,8 @@
     "test:watch": "vitest",
     "test:e2e": "npx playwright test",
     "create-admin": "npx tsx scripts/create-admin.ts",
-    "smoke-test": "npx tsx scripts/smoke-test.ts"
+    "smoke-test": "npx tsx scripts/smoke-test.ts",
+    "import:nces": "npx tsx scripts/import-nces-districts.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
