@@ -14,11 +14,13 @@ try {
 }
 
 // If districts table is empty (fresh prod DB), import bundled NCES CSV + seed problems.
+console.log("Running ensure-districts...");
 try {
   execSync("tsx scripts/ensure-districts.ts", {
     stdio: "inherit",
     env: process.env,
   });
+  console.log("ensure-districts finished.");
 } catch (e) {
   console.error("ensure-districts failed:", e.message);
   process.exit(1);
