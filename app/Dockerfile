@@ -43,19 +43,9 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/seed.ts ./scripts/seed.ts
 COPY --from=builder --chown=nextjs:nodejs /app/data ./data
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/nces-district.ts ./src/lib/nces-district.ts
 
-# Next standalone output may not trace @prisma/adapter-pg/pg; tsx scripts need them.
-# Install into a temp dir first to avoid npm conflicts with standalone's partial node_modules,
-# then merge into /app/node_modules and regenerate the Prisma client.
-USER root
-RUN mkdir -p /tmp/script-deps && cd /tmp/script-deps \
-    && echo '{"private":true}' > package.json \
-    && npm install @prisma/client@7.5.0 @prisma/adapter-pg@7.5.0 pg@8.20.0 --omit=dev \
-    && rm -rf /app/node_modules/@prisma /app/node_modules/pg /app/node_modules/pg-cloudflare \
-              /app/node_modules/pg-connection-string /app/node_modules/pg-int8 \
-              /app/node_modules/pg-pool /app/node_modules/pg-protocol /app/node_modules/pg-types \
-              /app/node_modules/pgpass \
-    && cp -r /tmp/script-deps/node_modules/. /app/node_modules/ \
-    && rm -rf /tmp/script-deps
+# Next standalone only traces deps for the bundled server; tsx scripts need full node_modules.
+# Copy the complete node_modules from builder so scripts can require @prisma/client + @prisma/adapter-pg + pg.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 RUN prisma generate --schema=prisma/schema.prisma
 RUN chown -R nextjs:nodejs /app/node_modules
 USER nextjs
