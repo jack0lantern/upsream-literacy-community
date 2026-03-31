@@ -43,6 +43,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/scripts/seed.ts ./scripts/seed.ts
 COPY --from=builder --chown=nextjs:nodejs /app/data ./data
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/nces-district.ts ./src/lib/nces-district.ts
 
+# Next standalone output may not trace @prisma/adapter-pg/pg; tsx scripts need them on MODULE_PATH.
+USER root
+RUN cd /app && npm install @prisma/client@7.5.0 @prisma/adapter-pg@7.5.0 pg@8.20.0 --omit=dev
+RUN chown -R nextjs:nodejs /app/node_modules
 USER nextjs
 
 EXPOSE 3000
