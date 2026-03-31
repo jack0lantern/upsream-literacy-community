@@ -354,7 +354,7 @@ export default function ConversationPage({
             <SelectTrigger>
               <SelectValue
                 placeholder="Select a reason"
-                render={() => reportReason ? REPORT_REASON_LABELS[reportReason] : null}
+                render={() => <span>{reportReason ? REPORT_REASON_LABELS[reportReason] : null}</span>}
               />
             </SelectTrigger>
             <SelectContent>
