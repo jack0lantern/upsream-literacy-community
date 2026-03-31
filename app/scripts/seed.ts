@@ -1,22 +1,6 @@
-import { config } from "dotenv";
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-
-// Match Next.js load order so seed hits the same DB as the dev server
-config({ path: resolve(process.cwd(), ".env") });
-config({ path: resolve(process.cwd(), ".env.local"), override: true });
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error(
-    "DATABASE_URL is not set. Add it to .env or .env.local in the app directory.",
-  );
-}
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: databaseUrl }),
-});
 
 const PROBLEM_STATEMENTS = [
   // Category 1: Curriculum & Instruction
@@ -294,6 +278,24 @@ const SAMPLE_DISTRICTS = [
 ];
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    const { config } = await import("dotenv");
+    config({ path: resolve(process.cwd(), ".env") });
+    config({ path: resolve(process.cwd(), ".env.local"), override: true });
+  }
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL is not set. Add it to .env or .env.local in the app directory.",
+    );
+  }
+
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: databaseUrl }),
+  });
+
+  try {
   console.log("🌱 Seeding database...\n");
 
   // Seed problem statements
@@ -581,13 +583,12 @@ async function main() {
   }
 
   console.log("✅ Seed complete!");
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((e) => {
-    console.error("Seed failed:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().catch((e) => {
+  console.error("Seed failed:", e);
+  process.exit(1);
+});

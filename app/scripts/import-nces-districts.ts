@@ -16,7 +16,6 @@
  * Only upserts rows with isManual: false — preserves manually created districts.
  */
 
-import { config } from "dotenv";
 import { resolve } from "node:path";
 import { readFileSync } from "node:fs";
 import { PrismaClient } from "@prisma/client";
@@ -26,22 +25,6 @@ import {
   enrollmentToSizeBucket,
   leaTypeToIsCharterAgency,
 } from "../src/lib/nces-district";
-
-// ── Environment ───────────────────────────────────────────────────────────────
-
-config({ path: resolve(process.cwd(), ".env") });
-config({ path: resolve(process.cwd(), ".env.local"), override: true });
-
-const databaseUrl = process.env.DATABASE_URL;
-if (!databaseUrl) {
-  throw new Error(
-    "DATABASE_URL is not set. Add it to .env or .env.local in the app directory.",
-  );
-}
-
-const prisma = new PrismaClient({
-  adapter: new PrismaPg({ connectionString: databaseUrl }),
-});
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -160,6 +143,24 @@ function parseCsv(filePath: string): NcesRow[] {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    const { config } = await import("dotenv");
+    config({ path: resolve(process.cwd(), ".env") });
+    config({ path: resolve(process.cwd(), ".env.local"), override: true });
+  }
+
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) {
+    throw new Error(
+      "DATABASE_URL is not set. Add it to .env or .env.local in the app directory.",
+    );
+  }
+
+  const prisma = new PrismaClient({
+    adapter: new PrismaPg({ connectionString: databaseUrl }),
+  });
+
+  try {
   const csvPath =
     process.argv[2] ?? process.env.NCES_CSV_PATH ?? DEFAULT_CSV_PATH;
 
@@ -214,13 +215,12 @@ async function main() {
   }
 
   console.log(`\nImport complete: ${upserted} districts upserted.`);
+  } finally {
+    await prisma.$disconnect();
+  }
 }
 
-main()
-  .catch((e) => {
-    console.error("Import failed:", e);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+main().catch((e) => {
+  console.error("Import failed:", e);
+  process.exit(1);
+});
