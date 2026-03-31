@@ -34,10 +34,11 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Copy prisma schema + migrations
 COPY --from=builder /app/prisma ./prisma
 
-# Prisma CLI (migrations) + tsx for optional BOOTSTRAP_NCES_ON_START scripts
+# Prisma CLI (migrations) + tsx for ensure-districts / NCES import on empty DB
 RUN npm install -g prisma@7 tsx
 RUN mkdir -p scripts src/lib
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/import-nces-districts.ts ./scripts/import-nces-districts.ts
+COPY --from=builder --chown=nextjs:nodejs /app/scripts/ensure-districts.ts ./scripts/ensure-districts.ts
 COPY --from=builder --chown=nextjs:nodejs /app/scripts/seed.ts ./scripts/seed.ts
 COPY --from=builder --chown=nextjs:nodejs /app/data ./data
 COPY --from=builder --chown=nextjs:nodejs /app/src/lib/nces-district.ts ./src/lib/nces-district.ts
