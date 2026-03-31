@@ -57,7 +57,6 @@ export async function GET(request: NextRequest) {
   const limit = Math.min(50, Math.max(1, parseInt(searchParams.get("limit") ?? "20")));
   const sort = searchParams.get("sort") ?? "score";
   const filterState = searchParams.get("state");
-  const filterStateScope = searchParams.get("stateScope"); // "same" | "different" | null
   const filterUrbanicity = searchParams.get("urbanicity");
   const filterSizeBucket = searchParams.get("sizeBucket");
   const filterCharter = searchParams.get("charter"); // "charter" | "traditional" | null
@@ -93,10 +92,6 @@ export async function GET(request: NextRequest) {
 
   if (filterState) {
     whereClause.district = { ...((whereClause.district as object) ?? {}), state: filterState };
-  } else if (filterStateScope === "same" && currentUser.district) {
-    whereClause.district = { ...((whereClause.district as object) ?? {}), state: currentUser.district.state };
-  } else if (filterStateScope === "different" && currentUser.district) {
-    whereClause.district = { ...((whereClause.district as object) ?? {}), state: { not: currentUser.district.state } };
   }
   if (filterUrbanicity) {
     whereClause.district = { ...((whereClause.district as object) ?? {}), urbanicity: filterUrbanicity };
@@ -210,7 +205,7 @@ export async function GET(request: NextRequest) {
   trackEvent("match_viewed", session.user.id, {
     resultCount: total,
     page,
-    filters: { filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter, filterRole },
+    filters: { filterState, filterUrbanicity, filterSizeBucket, filterCharter, filterRole },
   });
 
   return NextResponse.json({

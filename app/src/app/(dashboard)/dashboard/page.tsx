@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -92,7 +92,7 @@ export default function DashboardPage() {
   const [filterRole, setFilterRole] = useState("");
   const [filterChallenges, setFilterChallenges] = useState<Set<string>>(new Set());
   const [filterState, setFilterState] = useState("");
-  const [filterStateScope, setFilterStateScope] = useState("");
+  const [myUserState, setMyUserState] = useState<string | null>(null);
   const [filterUrbanicity, setFilterUrbanicity] = useState("");
   const [filterSizeBucket, setFilterSizeBucket] = useState("");
   const [filterCharter, setFilterCharter] = useState("");
@@ -131,6 +131,8 @@ export default function DashboardPage() {
         if (data.problems) {
           setMyProblemIds(new Set(data.problems.map((p: { id: string }) => p.id)));
         }
+        const st = data.district?.state;
+        setMyUserState(typeof st === "string" && st.length > 0 ? st : null);
       })
       .catch(() => {});
   }, []);
@@ -141,7 +143,6 @@ export default function DashboardPage() {
     if (filterRole) params.set("role", filterRole);
     if (filterChallenges.size > 0) params.set("problemIds", [...filterChallenges].join(","));
     if (filterState) params.set("state", filterState);
-    if (filterStateScope) params.set("stateScope", filterStateScope);
     if (filterUrbanicity) params.set("urbanicity", filterUrbanicity);
     if (filterSizeBucket) params.set("sizeBucket", filterSizeBucket);
     if (filterCharter) params.set("charter", filterCharter);
@@ -153,7 +154,7 @@ export default function DashboardPage() {
     setTotalPages(data.totalPages ?? 1);
     setLoading(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, sort, filterRole, filterChallengesKey, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
+  }, [page, sort, filterRole, filterChallengesKey, filterState, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   useEffect(() => {
     fetchMatches();
@@ -161,7 +162,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setPage(1);
-  }, [filterRole, filterChallengesKey, filterState, filterStateScope, filterUrbanicity, filterSizeBucket, filterCharter]);
+  }, [filterRole, filterChallengesKey, filterState, filterUrbanicity, filterSizeBucket, filterCharter]);
 
   function buildMatchSummary(match: Match): string {
     const parts: string[] = [];
@@ -198,11 +199,6 @@ export default function DashboardPage() {
     very_large: "Very Large (50K+)",
   };
 
-  const STATE_SCOPE_LABELS: Record<string, string> = {
-    same: "Same state as me",
-    different: "Different state",
-  };
-
   const CHARTER_LABELS: Record<string, string> = {
     charter: "Charter district only",
     traditional: "Traditional only",
@@ -211,10 +207,19 @@ export default function DashboardPage() {
   const activeFilterCount =
     (filterRole ? 1 : 0) +
     filterChallenges.size +
-    (filterState || filterStateScope ? 1 : 0) +
+    (filterState ? 1 : 0) +
     (filterUrbanicity ? 1 : 0) +
     (filterSizeBucket ? 1 : 0) +
     (filterCharter ? 1 : 0);
+
+  const orderedStates = useMemo(() => {
+    const codes = US_STATES as readonly string[];
+    if (!myUserState) return [...US_STATES];
+    if (codes.includes(myUserState)) {
+      return [myUserState, ...US_STATES.filter((s) => s !== myUserState)];
+    }
+    return [myUserState, ...US_STATES];
+  }, [myUserState]);
 
   const challengeBubble = (p: ProblemStatement) => (
     <button
@@ -327,28 +332,15 @@ export default function DashboardPage() {
         </label>
         <div>
           <label className="text-sm text-muted-foreground mb-1 block">State</label>
-          <Select
-            value={filterStateScope || filterState}
-            onValueChange={(v) => {
-              if (v === "same" || v === "different") {
-                setFilterStateScope(v);
-                setFilterState("");
-              } else {
-                setFilterStateScope("");
-                setFilterState(v ?? "");
-              }
-            }}
-          >
+          <Select value={filterState} onValueChange={(v) => setFilterState(v ?? "")}>
             <SelectTrigger className="text-xs">
               <SelectValue placeholder="All states">
-                {(v: string) => STATE_SCOPE_LABELS[v] ?? (v || "All states")}
+                {(v: string) => v || "All states"}
               </SelectValue>
             </SelectTrigger>
             <SelectContent className="[&_[data-slot=select-item]]:text-xs">
               <SelectItem value="">All states</SelectItem>
-              <SelectItem value="same">Same state as me</SelectItem>
-              <SelectItem value="different">Different state</SelectItem>
-              {US_STATES.map((s) => (
+              {orderedStates.map((s) => (
                 <SelectItem key={s} value={s}>
                   {s}
                 </SelectItem>
@@ -418,7 +410,6 @@ export default function DashboardPage() {
               setFilterRole("");
               setFilterChallenges(new Set());
               setFilterState("");
-              setFilterStateScope("");
               setFilterUrbanicity("");
               setFilterSizeBucket("");
               setFilterCharter("");
@@ -433,11 +424,15 @@ export default function DashboardPage() {
 
   return (
     <div className="flex gap-6">
-      {/* Desktop filter sidebar */}
-      <aside className="hidden lg:block w-72 shrink-0">
-        <div className="sticky top-20 rounded-xl border border-border bg-card p-5 shadow-sm">
-          <h2 className="text-sm font-semibold mb-4">Filters</h2>
-          {filterContent}
+      {/* Desktop filter sidebar: own scroll so long filters don’t grow the page */}
+      <aside className="hidden lg:block w-72 shrink-0 self-start lg:sticky lg:top-20">
+        <div className="flex max-h-[calc(100dvh-5.5rem)] flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm">
+          <h2 className="shrink-0 border-b border-border/80 px-5 pt-5 pb-3 text-sm font-semibold">
+            Filters
+          </h2>
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain px-5 py-4">
+            {filterContent}
+          </div>
         </div>
       </aside>
 

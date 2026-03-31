@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -15,46 +15,14 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
-import { Search } from "lucide-react";
-
-interface District {
-  id: string;
-  name: string;
-  state: string;
-  urbanicity: string | null;
-  totalEnrollment: number | null;
-}
 
 export default function SignupPage() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [districtQuery, setDistrictQuery] = useState("");
-  const [districtResults, setDistrictResults] = useState<District[]>([]);
-  const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
-  const [districtFocused, setDistrictFocused] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-
-  const searchDistricts = useCallback(async (q: string) => {
-    if (q.length < 2) {
-      setDistrictResults([]);
-      return;
-    }
-    const res = await fetch(`/api/districts/search?q=${encodeURIComponent(q)}`);
-    const data = await res.json();
-    setDistrictResults(data);
-  }, []);
-
-  useEffect(() => {
-    if (selectedDistrict) return;
-    const timeout = setTimeout(() => {
-      searchDistricts(districtQuery);
-    }, 300);
-    return () => clearTimeout(timeout);
-  }, [districtQuery, searchDistricts, selectedDistrict]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +37,6 @@ export default function SignupPage() {
           name,
           email,
           password,
-          districtId: selectedDistrict?.id,
         }),
       });
 
@@ -154,72 +121,10 @@ export default function SignupPage() {
               autoComplete="new-password"
             />
           </div>
-          <div className="space-y-2">
-            <Label htmlFor="district">District</Label>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
-              <Input
-                id="district"
-                value={selectedDistrict ? selectedDistrict.name : districtQuery}
-                onChange={(e) => {
-                  setDistrictQuery(e.target.value);
-                  setSelectedDistrict(null);
-                }}
-                onFocus={() => setDistrictFocused(true)}
-                onBlur={() => setTimeout(() => setDistrictFocused(false), 150)}
-                placeholder="Start typing your district name..."
-                autoComplete="off"
-                className="pl-8"
-              />
-              {selectedDistrict && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedDistrict(null);
-                    setDistrictQuery("");
-                  }}
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-sm"
-                  aria-label="Clear district"
-                >
-                  &times;
-                </button>
-              )}
-            </div>
-            {!selectedDistrict && districtFocused && districtResults.length === 0 && (
-              <div className="border rounded-md px-3 py-2 text-sm text-muted-foreground">
-                Type to search across 18,000+ districts
-              </div>
-            )}
-            {districtResults.length > 0 && !selectedDistrict && (
-              <div className="border rounded-md divide-y max-h-48 overflow-y-auto">
-                {districtResults.map((d) => (
-                  <button
-                    key={d.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedDistrict(d);
-                      setDistrictQuery("");
-                      setDistrictResults([]);
-                    }}
-                    className={cn(
-                      "w-full text-left px-3 py-2 hover:bg-accent transition-colors"
-                    )}
-                  >
-                    <p className="font-medium text-sm">{d.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {d.state}
-                      {d.urbanicity && ` · ${d.urbanicity}`}
-                      {d.totalEnrollment &&
-                        ` · ${d.totalEnrollment.toLocaleString()} students`}
-                    </p>
-                  </button>
-                ))}
-              </div>
-            )}
-            <p className="text-xs text-muted-foreground">
-              Optional — you can also set this during onboarding.
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground">
+            After you sign up, you&apos;ll choose your district and role in
+            onboarding.
+          </p>
         </CardContent>
         <CardFooter className="flex flex-col gap-4">
           <Button type="submit" className="w-full" disabled={loading}>

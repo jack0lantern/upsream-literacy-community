@@ -21,9 +21,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { US_STATES } from "@/lib/us-states";
+import { Search } from "lucide-react";
 
 const ROLE_LABELS: Record<string, string> = {
   literacy_director: "Literacy Director / CAO",
@@ -50,8 +50,9 @@ interface ProblemStatement {
   category: string;
 }
 
+const STATE_FILTER_ALL = "__all__";
+
 const STEPS = [
-  "Select State",
   "Find District",
   "Your Role",
   "Challenges",
@@ -69,6 +70,7 @@ export default function OnboardingPage() {
   const [districtQuery, setDistrictQuery] = useState("");
   const [districtResults, setDistrictResults] = useState<District[]>([]);
   const [selectedDistrict, setSelectedDistrict] = useState<District | null>(null);
+  const [districtFocused, setDistrictFocused] = useState(false);
   const [showManualEntry, setShowManualEntry] = useState(false);
   const [manualDistrict, setManualDistrict] = useState({
     name: "",
@@ -95,17 +97,26 @@ export default function OnboardingPage() {
     }
     const params = new URLSearchParams({ q });
     if (state) params.set("state", state);
-    const res = await fetch(`/api/districts/search?${params}`);
-    const data = await res.json();
-    setDistrictResults(data);
+    try {
+      const res = await fetch(`/api/districts/search?${params}`);
+      if (!res.ok) {
+        setDistrictResults([]);
+        return;
+      }
+      const data: unknown = await res.json();
+      setDistrictResults(Array.isArray(data) ? data : []);
+    } catch {
+      setDistrictResults([]);
+    }
   }, []);
 
   useEffect(() => {
+    if (selectedDistrict) return;
     const timeout = setTimeout(() => {
       searchDistricts(districtQuery, selectedState);
     }, 300);
     return () => clearTimeout(timeout);
-  }, [districtQuery, selectedState, searchDistricts]);
+  }, [districtQuery, selectedState, searchDistricts, selectedDistrict]);
 
   function toggleProblem(id: string) {
     setSelectedProblemIds((prev) =>
@@ -136,7 +147,7 @@ export default function OnboardingPage() {
     const district = await res.json();
     setSelectedDistrict(district);
     setShowManualEntry(false);
-    setStep(2);
+    setStep(1);
   }
 
   async function handleSubmit() {
@@ -174,14 +185,12 @@ export default function OnboardingPage() {
   const canProceed = () => {
     switch (step) {
       case 0:
-        return !!selectedState;
-      case 1:
         return !!selectedDistrict;
-      case 2:
+      case 1:
         return !!role;
-      case 3:
+      case 2:
         return selectedProblemIds.length >= 1;
-      case 4:
+      case 3:
         return true;
       default:
         return false;
@@ -250,74 +259,126 @@ export default function OnboardingPage() {
       </div>
 
       <Card>
-        {/* Step 0: State */}
-        {step === 0 && (
-          <>
-            <CardHeader>
-              <CardTitle>What state is your district in?</CardTitle>
-              <CardDescription>
-                This helps us find your district in our database.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <Select value={selectedState} onValueChange={(v) => v && setSelectedState(v)}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select your state" />
-                </SelectTrigger>
-                <SelectContent>
-                  {US_STATES.map((s) => (
-                    <SelectItem key={s} value={s}>
-                      {s}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </CardContent>
-          </>
-        )}
-
-        {/* Step 1: District search */}
-        {step === 1 && !showManualEntry && (
+        {/* Step 0: District search */}
+        {step === 0 && !showManualEntry && (
           <>
             <CardHeader>
               <CardTitle>Find your district</CardTitle>
               <CardDescription>
                 Search by district name. We&apos;ll auto-fill demographic data.
+                Optionally narrow results by state.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <Input
-                placeholder="Start typing your district name..."
-                value={districtQuery}
-                onChange={(e) => setDistrictQuery(e.target.value)}
-                autoFocus
-              />
-              {districtResults.length > 0 && (
-                <div className="border rounded-md divide-y max-h-64 overflow-y-auto">
-                  {districtResults.map((d) => (
+              <div className="space-y-2">
+                <Label htmlFor="stateFilter" className="text-muted-foreground">
+                  State{" "}
+                  <span className="font-normal">(optional — skip to search nationwide)</span>
+                </Label>
+                <Select
+                  value={selectedState || STATE_FILTER_ALL}
+                  onValueChange={(v) => {
+                    if (v == null || v === STATE_FILTER_ALL) {
+                      setSelectedState("");
+                      return;
+                    }
+                    setSelectedState(v);
+                  }}
+                >
+                  <SelectTrigger id="stateFilter">
+                    <SelectValue placeholder="Any state">
+                      {selectedState ? selectedState : "Any state"}
+                    </SelectValue>
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={STATE_FILTER_ALL}>Any state</SelectItem>
+                    {US_STATES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="district">District</Label>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+                  <Input
+                    id="district"
+                    placeholder="Start typing your district name..."
+                    value={selectedDistrict ? selectedDistrict.name : districtQuery}
+                    onChange={(e) => {
+                      setDistrictQuery(e.target.value);
+                      setSelectedDistrict(null);
+                    }}
+                    onFocus={() => setDistrictFocused(true)}
+                    onBlur={() =>
+                      setTimeout(() => setDistrictFocused(false), 150)
+                    }
+                    autoComplete="off"
+                    className={cn("pl-8", selectedDistrict && "pr-9")}
+                    autoFocus
+                  />
+                  {selectedDistrict && (
                     <button
-                      key={d.id}
+                      type="button"
                       onClick={() => {
-                        setSelectedDistrict(d);
-                        setDistrictQuery(d.name);
+                        setSelectedDistrict(null);
+                        setDistrictQuery("");
                         setDistrictResults([]);
                       }}
-                      className={cn(
-                        "w-full text-left px-3 py-2.5 hover:bg-accent transition-colors",
-                        selectedDistrict?.id === d.id && "bg-accent"
-                      )}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground text-sm"
+                      aria-label="Clear district"
                     >
-                      <p className="font-medium text-sm">{d.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {d.state}
-                        {d.urbanicity && ` · ${d.urbanicity}`}
-                        {d.totalEnrollment &&
-                          ` · ${d.totalEnrollment.toLocaleString()} students`}
-                      </p>
+                      &times;
                     </button>
-                  ))}
+                  )}
                 </div>
-              )}
+                {!selectedDistrict &&
+                  districtFocused &&
+                  districtResults.length === 0 && (
+                    <div className="border rounded-md px-3 py-2 text-sm text-muted-foreground">
+                      Type to search across 18,000+ districts
+                    </div>
+                  )}
+                {districtResults.length > 0 && !selectedDistrict && (
+                  <div
+                    role="listbox"
+                    className="border rounded-md divide-y max-h-48 overflow-y-auto"
+                    onMouseDown={(e) => e.preventDefault()}
+                  >
+                    {districtResults.map((d) => (
+                      <button
+                        key={d.id}
+                        type="button"
+                        role="option"
+                        onClick={() => {
+                          setSelectedDistrict(d);
+                          setDistrictQuery("");
+                          setDistrictResults([]);
+                          const code = d.state?.trim().toUpperCase() ?? "";
+                          const states = US_STATES as readonly string[];
+                          if (code && states.includes(code)) {
+                            setSelectedState(code);
+                          }
+                        }}
+                        className={cn(
+                          "w-full text-left px-3 py-2 hover:bg-accent transition-colors"
+                        )}
+                      >
+                        <p className="font-medium text-sm">{d.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {d.state}
+                          {d.urbanicity && ` · ${d.urbanicity}`}
+                          {d.totalEnrollment &&
+                            ` · ${d.totalEnrollment.toLocaleString()} students`}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
 
               {selectedDistrict && (
                 <div className="bg-muted/50 rounded-md p-4 space-y-2">
@@ -350,6 +411,7 @@ export default function OnboardingPage() {
               )}
 
               <button
+                type="button"
                 onClick={() => setShowManualEntry(true)}
                 className="text-sm text-muted-foreground hover:text-foreground underline"
               >
@@ -359,8 +421,8 @@ export default function OnboardingPage() {
           </>
         )}
 
-        {/* Step 1b: Manual district entry */}
-        {step === 1 && showManualEntry && (
+        {/* Step 0b: Manual district entry */}
+        {step === 0 && showManualEntry && (
           <>
             <CardHeader>
               <CardTitle>Enter your district manually</CardTitle>
@@ -370,6 +432,24 @@ export default function OnboardingPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="manualState">State</Label>
+                <Select
+                  value={selectedState || undefined}
+                  onValueChange={(v) => v && setSelectedState(v)}
+                >
+                  <SelectTrigger id="manualState">
+                    <SelectValue placeholder="Select state" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {US_STATES.map((s) => (
+                      <SelectItem key={s} value={s}>
+                        {s}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="districtName">District name</Label>
                 <Input
@@ -411,7 +491,7 @@ export default function OnboardingPage() {
                 </Button>
                 <Button
                   onClick={handleManualDistrictCreate}
-                  disabled={!manualDistrict.name}
+                  disabled={!manualDistrict.name || !selectedState}
                 >
                   Continue
                 </Button>
@@ -420,8 +500,8 @@ export default function OnboardingPage() {
           </>
         )}
 
-        {/* Step 2: Role */}
-        {step === 2 && (
+        {/* Step 1: Role */}
+        {step === 1 && (
           <>
             <CardHeader>
               <CardTitle>What&apos;s your role?</CardTitle>
@@ -450,8 +530,8 @@ export default function OnboardingPage() {
           </>
         )}
 
-        {/* Step 3: Problem statements */}
-        {step === 3 && (
+        {/* Step 2: Problem statements */}
+        {step === 2 && (
           <>
             <CardHeader>
               <CardTitle>
@@ -501,8 +581,8 @@ export default function OnboardingPage() {
           </>
         )}
 
-        {/* Step 4: Bio */}
-        {step === 4 && (
+        {/* Step 3: Bio */}
+        {step === 3 && (
           <>
             <CardHeader>
               <CardTitle>Tell peers about yourself</CardTitle>
@@ -538,7 +618,7 @@ export default function OnboardingPage() {
         )}
 
         {/* Navigation */}
-        {!(step === 1 && showManualEntry) && (
+        {!(step === 0 && showManualEntry) && (
           <CardFooter className="flex justify-between">
             <Button
               variant="outline"
