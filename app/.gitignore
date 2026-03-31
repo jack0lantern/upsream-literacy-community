@@ -41,5 +41,6 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# NCES and other large data files (not committed to source control)
-/data/
+# NCES and other large data files — keep bulk exports local; district CSV is tracked for Docker/Railway builds
+/data/*
+!/data/nces-districts.csv
