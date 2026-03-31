@@ -8,8 +8,9 @@ import { test, expect } from "@playwright/test";
 import { login, USERS, uniqueEmail } from "./helpers";
 
 test.describe("Edge Cases", () => {
-  test("non-onboarded user is redirected to onboarding", async ({ page }) => {
-    // Sign up a brand new user
+  test("non-onboarded user sees finish-onboarding banner on other dashboard pages", async ({
+    page,
+  }) => {
     const email = uniqueEmail();
     await page.goto("/signup");
     await page.getByLabel("Full name").fill("Edge Case User");
@@ -18,9 +19,11 @@ test.describe("Edge Cases", () => {
     await page.getByRole("button", { name: "Create account" }).click();
     await expect(page).toHaveURL(/\/onboarding/, { timeout: 15_000 });
 
-    // Try navigating to dashboard — should redirect back to onboarding
     await page.goto("/dashboard");
-    await expect(page).toHaveURL(/\/onboarding/, { timeout: 10_000 });
+    await expect(page).toHaveURL(/\/dashboard/, { timeout: 10_000 });
+    await expect(
+      page.getByRole("link", { name: "Finish onboarding" })
+    ).toBeVisible();
   });
 
   test("onboarding requires selecting at least 1 problem statement", async ({ page }) => {

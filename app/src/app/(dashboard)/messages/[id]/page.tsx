@@ -48,6 +48,13 @@ interface ConversationInfo {
   status: string;
 }
 
+const REPORT_REASON_LABELS: Record<string, string> = {
+  spam: "Spam",
+  harassment: "Harassment",
+  "off-topic": "Off-topic",
+  other: "Other",
+};
+
 export default function ConversationPage({
   params,
 }: {
@@ -62,6 +69,7 @@ export default function ConversationPage({
   const [reportReason, setReportReason] = useState("");
   const [reportingMessageId, setReportingMessageId] = useState<string | null>(null);
   const [reportMessageReason, setReportMessageReason] = useState("");
+  const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -320,39 +328,9 @@ export default function ConversationPage({
             <DropdownMenuItem onClick={handleMute}>
               {conversationInfo?.muted ? "Unmute" : "Mute"} conversation
             </DropdownMenuItem>
-            <Dialog>
-              <DialogTrigger
-                render={(props) => <DropdownMenuItem {...props}>Report conversation</DropdownMenuItem>}
-              />
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Report this conversation</DialogTitle>
-                  <DialogDescription>
-                    Our team will review this conversation within 24 hours.
-                  </DialogDescription>
-                </DialogHeader>
-                <Select value={reportReason} onValueChange={(v) => v && setReportReason(v)}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a reason" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="spam">Spam</SelectItem>
-                    <SelectItem value="harassment">Harassment</SelectItem>
-                    <SelectItem value="off-topic">Off-topic</SelectItem>
-                    <SelectItem value="other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-                <DialogFooter>
-                  <Button
-                    variant="destructive"
-                    onClick={handleReport}
-                    disabled={!reportReason}
-                  >
-                    Submit report
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <DropdownMenuItem onClick={() => setReportDialogOpen(true)}>
+              Report conversation
+            </DropdownMenuItem>
             <DropdownMenuItem
               onClick={handleBlock}
               className="text-destructive focus:text-destructive"
@@ -362,6 +340,41 @@ export default function ConversationPage({
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
+      {/* Report Conversation Dialog */}
+      <Dialog open={reportDialogOpen} onOpenChange={setReportDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report this conversation</DialogTitle>
+            <DialogDescription>
+              Our team will review this conversation within 24 hours.
+            </DialogDescription>
+          </DialogHeader>
+          <Select value={reportReason} onValueChange={(v) => v && setReportReason(v)}>
+            <SelectTrigger>
+              <SelectValue
+                placeholder="Select a reason"
+                render={() => reportReason ? REPORT_REASON_LABELS[reportReason] : null}
+              />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="spam">Spam</SelectItem>
+              <SelectItem value="harassment">Harassment</SelectItem>
+              <SelectItem value="off-topic">Off-topic</SelectItem>
+              <SelectItem value="other">Other</SelectItem>
+            </SelectContent>
+          </Select>
+          <DialogFooter>
+            <Button
+              variant="destructive"
+              onClick={handleReport}
+              disabled={!reportReason}
+            >
+              Submit report
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto py-4 space-y-4">

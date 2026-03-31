@@ -89,5 +89,59 @@ test.describe("Messaging", () => {
 
     expect(hasRequests || noRequests).toBe(true);
   });
+
+  test("report conversation dialog opens and stays open without flickering", async ({
+    page,
+  }) => {
+    // Log in as Sarah and navigate to a conversation
+    await login(page, USERS.sarah.email, USERS.sarah.password);
+    await page.goto("/messages");
+
+    // Wait for conversations to load
+    const conversationLink = page.locator('a[href^="/messages/"]').first();
+    await expect(conversationLink).toBeVisible({ timeout: 10_000 });
+
+    // Click the first conversation to open it
+    await conversationLink.click();
+    await expect(page).toHaveURL(/\/messages\//, { timeout: 5_000 });
+
+    // Wait for the conversation to fully load
+    await expect(page.locator('[role="dialog"]')).not.toBeVisible({
+      timeout: 1_000,
+    });
+
+    // Click the dropdown menu button (⋮ three-dot icon)
+    const menuButton = page.locator('button[aria-label="Conversation options"]');
+    await expect(menuButton).toBeVisible({ timeout: 5_000 });
+    await menuButton.click();
+
+    // Wait for dropdown to appear
+    await expect(page.getByText("Mute conversation")).toBeVisible({
+      timeout: 2_000,
+    });
+
+    // Click "Report conversation"
+    await page.getByText("Report conversation").click();
+
+    // Verify the dialog opens and stays visible (no flicker)
+    const reportDialog = page.getByRole("dialog", {
+      name: "Report this conversation",
+    });
+    await expect(reportDialog).toBeVisible({ timeout: 2_000 });
+
+    // Verify the dialog content is still visible after a brief pause
+    // (if it was flickering and closing, this would fail)
+    await page.waitForTimeout(500);
+    await expect(reportDialog).toBeVisible();
+
+    // Verify we can interact with the dialog - select a reason
+    const selectTrigger = page.locator('[data-slot="select-trigger"]').first();
+    await expect(selectTrigger).toBeVisible();
+    await selectTrigger.click();
+    await page.getByRole("option", { name: "Spam" }).click();
+
+    // Verify the option was selected (label should be visible)
+    await expect(selectTrigger).toContainText("Spam");
+  });
 });
 
